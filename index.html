@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="board-area" aria-label="Chess board">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Chess</p>
+            <h1 id="status">White to move</h1>
+          </div>
+          <div class="actions" aria-label="Game controls">
+            <button id="flip-board" type="button" title="Flip board" aria-label="Flip board">↕</button>
+            <button id="undo-move" type="button" title="Undo move" aria-label="Undo move">↶</button>
+            <button id="reset-game" type="button" title="New game" aria-label="New game">＋</button>
+          </div>
+        </div>
+
+        <div class="board-wrap">
+          <div class="files files-top" aria-hidden="true"></div>
+          <div class="board-grid">
+            <div class="ranks ranks-left" aria-hidden="true"></div>
+            <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+            <div class="ranks ranks-right" aria-hidden="true"></div>
+          </div>
+          <div class="files files-bottom" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="Game details">
+        <section class="panel-section">
+          <div class="panel-heading">
+            <h2>Captured</h2>
+          </div>
+          <div class="captures">
+            <div>
+              <span>White</span>
+              <p id="captured-white"></p>
+            </div>
+            <div>
+              <span>Black</span>
+              <p id="captured-black"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section moves-section">
+          <div class="panel-heading">
+            <h2>Moves</h2>
+            <span id="move-count">0</span>
+          </div>
+          <ol id="move-list" class="move-list" aria-label="Move history"></ol>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>
