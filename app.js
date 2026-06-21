@@ -832,8 +832,8 @@ function buildChatGptCoachPrompt() {
   const context = getCurrentGameContextForChat();
 
   return [
-    "Act as a chess coach. Explain plans, threats, mistakes, tactical motifs, and improvement ideas in this game.",
-    "Be concise, practical, and teach me how to think about the position. If there is a tactic, explain the pattern before giving the full line.",
+    "Act as a concise chess coach. Reply in exactly one short paragraph, no bullet points, no headings, and no long variation tree.",
+    "Focus only on the most important idea in the current position: the plan, biggest threat, likely mistake, or tactical motif. If there is a tactic, name the pattern and give only the key line.",
     "",
     `Current FEN: ${context.fen}`,
     `Side to move: ${context.sideToMove}`,
@@ -844,7 +844,7 @@ function buildChatGptCoachPrompt() {
     `Captured Black pieces: ${context.capturedBlack}`,
     `Opponent setting: ${context.opponent}`,
     "",
-    "Please analyze the current position and tell me what I should learn from it.",
+    "Give me one practical takeaway from this position.",
   ].join("\n");
 }
 
