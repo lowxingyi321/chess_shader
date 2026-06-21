@@ -227,6 +227,10 @@ function getPlayerColor() {
 }
 
 function getVisibleAttacks(attacks) {
+  if (shaderMode === "off") {
+    return { w: 0, b: 0, total: 0 };
+  }
+
   const visible = {
     w: shaderMode === "b" ? 0 : attacks.w,
     b: shaderMode === "w" ? 0 : attacks.b,
@@ -989,7 +993,7 @@ resetButton.addEventListener("click", () => {
 
 shaderButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    shaderMode = button.dataset.shaderMode;
+    shaderMode = shaderMode === button.dataset.shaderMode ? "off" : button.dataset.shaderMode;
     render();
   });
 });
