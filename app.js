@@ -793,6 +793,7 @@ function getCurrentGameContextForChat() {
 
   return {
     fen: game.fen(),
+    playerPerspective: getPlayerColor() === "w" ? "White" : "Black",
     sideToMove: game.turn() === "w" ? "White" : "Black",
     activeLine: getActiveLinePgnForChat(),
     currentMove: currentNode.parentId
@@ -832,10 +833,11 @@ function buildChatGptCoachPrompt() {
   const context = getCurrentGameContextForChat();
 
   return [
-    "Act as a concise chess coach. Reply in exactly one short paragraph, no bullet points, no headings, and no long variation tree.",
+    "Act as a concise chess coach for the side listed as 'Coach me as'. Reply in exactly one short paragraph, no bullet points, no headings, and no long variation tree.",
     "Focus only on the most important idea in the current position: the plan, biggest threat, likely mistake, or tactical motif. If there is a tactic, name the pattern and give only the key line.",
     "",
     `Current FEN: ${context.fen}`,
+    `Coach me as: ${context.playerPerspective}`,
     `Side to move: ${context.sideToMove}`,
     `Current selected move/position: ${context.currentMove}`,
     `Active line PGN: ${context.activeLine}`,
