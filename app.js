@@ -22,6 +22,8 @@ const pieceValues = {
 };
 
 const promotionPieces = ["q", "r", "b", "n"];
+const boardFiles = ["a", "b", "c", "d", "e", "f", "g", "h"];
+const boardRanks = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 const boardEl = document.querySelector("#board");
 const statusEl = document.querySelector("#status");
@@ -59,17 +61,21 @@ function waitForChess() {
 }
 
 function getFiles() {
-  const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const files = [...boardFiles];
   return flipped ? files.reverse() : files;
 }
 
 function getRanks() {
-  const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
+  const ranks = [...boardRanks].reverse();
   return flipped ? ranks.reverse() : ranks;
 }
 
 function getSquares() {
   return getRanks().flatMap((rank) => getFiles().map((file) => `${file}${rank}`));
+}
+
+function getBoardSquares() {
+  return [...boardRanks].reverse().flatMap((rank) => boardFiles.map((file) => `${file}${rank}`));
 }
 
 function renderCoordinates() {
@@ -94,9 +100,12 @@ function render() {
   renderCoordinates();
 
   const legalTargets = new Map(legalMoves.map((move) => [move.to, move]));
+  const attackCounts = getAttackCounts();
+  const strongestAttack = Math.max(1, ...attackCounts.values());
 
   getSquares().forEach((square) => {
     const piece = game.get(square);
+    const attackCount = attackCounts.get(square) || 0;
     const button = document.createElement("button");
     const fileIndex = square.charCodeAt(0) - 97;
     const rankIndex = Number(square[1]) - 1;
@@ -109,9 +118,19 @@ function render() {
     button.setAttribute("role", "gridcell");
     button.setAttribute("aria-label", square);
 
+    if (attackCount) {
+      button.classList.add("attacked");
+      button.style.setProperty("--attack-alpha", getAttackAlpha(attackCount, strongestAttack));
+      button.title = `${square}: attacked by ${attackCount} piece${attackCount === 1 ? "" : "s"}`;
+    }
     if (selectedSquare === square) button.classList.add("selected");
-    if (legalMove) button.classList.add(legalMove.flags.includes("c") ? "capture" : "legal");
-    if (piece) button.textContent = pieces[`${piece.color}${piece.type}`];
+    if (legalMove) button.classList.add(/[ce]/.test(legalMove.flags) ? "capture" : "legal");
+    if (piece) {
+      const pieceEl = document.createElement("span");
+      pieceEl.className = "piece";
+      pieceEl.textContent = pieces[`${piece.color}${piece.type}`];
+      button.appendChild(pieceEl);
+    }
 
     button.addEventListener("click", () => handleSquareClick(square));
     boardEl.appendChild(button);
@@ -120,6 +139,123 @@ function render() {
   updateStatus();
   updateHistory();
   updateCaptured();
+}
+
+function getAttackAlpha(count, strongestAttack) {
+  const intensity = count / strongestAttack;
+  return String(Math.min(0.76, 0.16 + intensity * 0.52));
+}
+
+function getAttackCounts() {
+  const counts = new Map();
+
+  getBoardSquares().forEach((square) => {
+    const piece = game.get(square);
+    if (!piece) return;
+
+    getAttackedSquares(square, piece).forEach((attackedSquare) => {
+      counts.set(attackedSquare, (counts.get(attackedSquare) || 0) + 1);
+    });
+  });
+
+  return counts;
+}
+
+function getAttackedSquares(square, piece) {
+  const file = square.charCodeAt(0) - 97;
+  const rank = Number(square[1]) - 1;
+
+  if (piece.type === "p") {
+    const direction = piece.color === "w" ? 1 : -1;
+    return [
+      toSquare(file - 1, rank + direction),
+      toSquare(file + 1, rank + direction),
+    ].filter(Boolean);
+  }
+
+  if (piece.type === "n") {
+    return [
+      [-2, -1],
+      [-2, 1],
+      [-1, -2],
+      [-1, 2],
+      [1, -2],
+      [1, 2],
+      [2, -1],
+      [2, 1],
+    ]
+      .map(([fileStep, rankStep]) => toSquare(file + fileStep, rank + rankStep))
+      .filter(Boolean);
+  }
+
+  if (piece.type === "k") {
+    return [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ]
+      .map(([fileStep, rankStep]) => toSquare(file + fileStep, rank + rankStep))
+      .filter(Boolean);
+  }
+
+  const directions = {
+    b: [
+      [-1, -1],
+      [-1, 1],
+      [1, -1],
+      [1, 1],
+    ],
+    r: [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ],
+    q: [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ],
+  };
+
+  return directions[piece.type].flatMap(([fileStep, rankStep]) =>
+    getRayAttacks(file, rank, fileStep, rankStep),
+  );
+}
+
+function getRayAttacks(file, rank, fileStep, rankStep) {
+  const attackedSquares = [];
+  let nextFile = file + fileStep;
+  let nextRank = rank + rankStep;
+
+  while (isOnBoard(nextFile, nextRank)) {
+    const square = toSquare(nextFile, nextRank);
+    attackedSquares.push(square);
+    if (game.get(square)) break;
+    nextFile += fileStep;
+    nextRank += rankStep;
+  }
+
+  return attackedSquares;
+}
+
+function toSquare(file, rank) {
+  if (!isOnBoard(file, rank)) return null;
+  return `${boardFiles[file]}${boardRanks[rank]}`;
+}
+
+function isOnBoard(file, rank) {
+  return file >= 0 && file < 8 && rank >= 0 && rank < 8;
 }
 
 function handleSquareClick(square) {
@@ -234,7 +370,7 @@ function getCapturedPieces() {
     black: { p: 0, n: 0, b: 0, r: 0, q: 0 },
   };
 
-  getSquares().forEach((square) => {
+  getBoardSquares().forEach((square) => {
     const piece = game.get(square);
     if (!piece || piece.type === "k") return;
     const color = piece.color === "w" ? "white" : "black";

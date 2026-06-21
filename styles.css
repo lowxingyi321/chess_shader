@@ -154,6 +154,26 @@ button {
     transform 140ms ease;
 }
 
+.square::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.square.attacked::before {
+  background:
+    radial-gradient(circle at center, rgba(196, 32, 28, var(--attack-alpha)) 0 46%, transparent 78%),
+    rgba(196, 32, 28, calc(var(--attack-alpha) * 0.68));
+}
+
+.piece {
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 2px 1px rgba(255, 255, 255, 0.28));
+}
+
 .square.light {
   background: var(--light-square);
 }
@@ -172,10 +192,13 @@ button {
 
 .square.selected {
   background: var(--selected);
+  box-shadow: inset 0 0 0 4px rgba(28, 35, 36, 0.42);
 }
 
 .square.legal::after {
   content: "";
+  position: relative;
+  z-index: 3;
   width: 28%;
   height: 28%;
   border-radius: 999px;
@@ -186,6 +209,7 @@ button {
   content: "";
   position: absolute;
   inset: 12%;
+  z-index: 3;
   border: 4px solid rgba(176, 68, 62, 0.72);
   border-radius: 999px;
 }
