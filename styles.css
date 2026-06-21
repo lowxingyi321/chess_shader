@@ -47,7 +47,7 @@ button {
   display: grid;
   grid-template-columns: minmax(320px, 760px) minmax(260px, 340px);
   gap: 28px;
-  align-items: center;
+  align-items: start;
 }
 
 .board-area,
