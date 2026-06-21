@@ -554,7 +554,6 @@ button {
   margin-top: 10px;
 }
 
-.chat-actions a,
 .chat-actions button {
   display: grid;
   place-items: center;
@@ -567,11 +566,8 @@ button {
   font-size: 0.82rem;
   font-weight: 800;
   text-align: center;
-  text-decoration: none;
 }
 
-.chat-actions a:hover,
-.chat-actions a:focus-visible,
 .chat-actions button:hover,
 .chat-actions button:focus-visible {
   outline: 2px solid rgba(53, 95, 138, 0.22);
