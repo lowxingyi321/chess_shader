@@ -144,6 +144,8 @@ button {
   border: 0;
   min-width: 0;
   aspect-ratio: 1;
+  --red-alpha: 0;
+  --blue-alpha: 0;
   color: var(--ink);
   cursor: pointer;
   font-family: "Segoe UI Symbol", "Apple Color Emoji", serif;
@@ -162,10 +164,23 @@ button {
   pointer-events: none;
 }
 
-.square.attacked::before {
+.square.attack-red::before {
   background:
-    radial-gradient(circle at center, rgba(196, 32, 28, var(--attack-alpha)) 0 46%, transparent 78%),
-    rgba(196, 32, 28, calc(var(--attack-alpha) * 0.68));
+    radial-gradient(circle at center, rgba(196, 32, 28, var(--red-alpha)) 0 46%, transparent 78%),
+    rgba(196, 32, 28, calc(var(--red-alpha) * 0.68));
+}
+
+.square.attack-blue::before {
+  background:
+    radial-gradient(circle at center, rgba(31, 112, 194, var(--blue-alpha)) 0 46%, transparent 78%),
+    rgba(31, 112, 194, calc(var(--blue-alpha) * 0.66));
+}
+
+.square.attack-red.attack-blue::before {
+  background:
+    linear-gradient(135deg, rgba(196, 32, 28, var(--red-alpha)) 0 48%, transparent 48%),
+    linear-gradient(315deg, rgba(31, 112, 194, var(--blue-alpha)) 0 48%, transparent 48%),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.16) 0 24%, transparent 58%);
 }
 
 .piece {
@@ -261,6 +276,69 @@ button {
 
 .panel-heading h2 {
   font-size: 0.95rem;
+}
+
+.shader-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.shader-option {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.shader-option:hover,
+.shader-option:focus-visible {
+  color: var(--ink);
+  outline: 2px solid rgba(53, 95, 138, 0.22);
+}
+
+.shader-option.active {
+  background: #26302d;
+  color: #ffffff;
+}
+
+.shader-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.shader-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shader-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-red {
+  background: #c4201c;
+}
+
+.legend-blue {
+  background: #1f70c2;
 }
 
 #move-count {

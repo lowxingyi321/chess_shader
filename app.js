@@ -34,11 +34,13 @@ const capturedBlackEl = document.querySelector("#captured-black");
 const flipButton = document.querySelector("#flip-board");
 const undoButton = document.querySelector("#undo-move");
 const resetButton = document.querySelector("#reset-game");
+const shaderButtons = document.querySelectorAll(".shader-option");
 
 let game;
 let selectedSquare = null;
 let legalMoves = [];
 let flipped = false;
+let shaderMode = "both";
 
 function waitForChess() {
   if (window.Chess) {
@@ -101,11 +103,13 @@ function render() {
 
   const legalTargets = new Map(legalMoves.map((move) => [move.to, move]));
   const attackCounts = getAttackCounts();
-  const strongestAttack = Math.max(1, ...attackCounts.values());
+  const strongestAttack = getStrongestVisibleAttack(attackCounts);
+  const playerColor = getPlayerColor();
 
   getSquares().forEach((square) => {
     const piece = game.get(square);
-    const attackCount = attackCounts.get(square) || 0;
+    const squareAttacks = attackCounts.get(square) || { w: 0, b: 0 };
+    const visibleAttacks = getVisibleAttacks(squareAttacks);
     const button = document.createElement("button");
     const fileIndex = square.charCodeAt(0) - 97;
     const rankIndex = Number(square[1]) - 1;
@@ -118,10 +122,21 @@ function render() {
     button.setAttribute("role", "gridcell");
     button.setAttribute("aria-label", square);
 
-    if (attackCount) {
+    if (visibleAttacks.total) {
+      const enemyColor = playerColor === "w" ? "b" : "w";
+      const redCount = visibleAttacks[enemyColor];
+      const blueCount = visibleAttacks[playerColor];
+
       button.classList.add("attacked");
-      button.style.setProperty("--attack-alpha", getAttackAlpha(attackCount, strongestAttack));
-      button.title = `${square}: attacked by ${attackCount} piece${attackCount === 1 ? "" : "s"}`;
+      if (redCount) {
+        button.classList.add("attack-red");
+        button.style.setProperty("--red-alpha", getAttackAlpha(redCount, strongestAttack));
+      }
+      if (blueCount) {
+        button.classList.add("attack-blue");
+        button.style.setProperty("--blue-alpha", getAttackAlpha(blueCount, strongestAttack));
+      }
+      button.title = getAttackTitle(square, visibleAttacks, playerColor);
     }
     if (selectedSquare === square) button.classList.add("selected");
     if (legalMove) button.classList.add(/[ce]/.test(legalMove.flags) ? "capture" : "legal");
@@ -139,11 +154,51 @@ function render() {
   updateStatus();
   updateHistory();
   updateCaptured();
+  updateShaderControls();
 }
 
 function getAttackAlpha(count, strongestAttack) {
   const intensity = count / strongestAttack;
   return String(Math.min(0.76, 0.16 + intensity * 0.52));
+}
+
+function getPlayerColor() {
+  return flipped ? "b" : "w";
+}
+
+function getVisibleAttacks(attacks) {
+  const visible = {
+    w: shaderMode === "b" ? 0 : attacks.w,
+    b: shaderMode === "w" ? 0 : attacks.b,
+  };
+  visible.total = visible.w + visible.b;
+  return visible;
+}
+
+function getStrongestVisibleAttack(attackCounts) {
+  let strongest = 1;
+
+  attackCounts.forEach((attacks) => {
+    const visible = getVisibleAttacks(attacks);
+    strongest = Math.max(strongest, visible.w, visible.b);
+  });
+
+  return strongest;
+}
+
+function getAttackTitle(square, attacks, playerColor) {
+  const colorName = playerColor === "w" ? "White" : "Black";
+  const enemyName = playerColor === "w" ? "Black" : "White";
+  const labels = [];
+
+  if (attacks[playerColor]) {
+    labels.push(`${colorName}: ${attacks[playerColor]}`);
+  }
+  if (attacks[playerColor === "w" ? "b" : "w"]) {
+    labels.push(`${enemyName}: ${attacks[playerColor === "w" ? "b" : "w"]}`);
+  }
+
+  return `${square}: ${labels.join(", ")}`;
 }
 
 function getAttackCounts() {
@@ -154,11 +209,19 @@ function getAttackCounts() {
     if (!piece) return;
 
     getAttackedSquares(square, piece).forEach((attackedSquare) => {
-      counts.set(attackedSquare, (counts.get(attackedSquare) || 0) + 1);
+      const squareCounts = counts.get(attackedSquare) || { w: 0, b: 0 };
+      squareCounts[piece.color] += 1;
+      counts.set(attackedSquare, squareCounts);
     });
   });
 
   return counts;
+}
+
+function updateShaderControls() {
+  shaderButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.shaderMode === shaderMode);
+  });
 }
 
 function getAttackedSquares(square, piece) {
@@ -404,6 +467,13 @@ resetButton.addEventListener("click", () => {
   game.reset();
   clearSelection();
   render();
+});
+
+shaderButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    shaderMode = button.dataset.shaderMode;
+    render();
+  });
 });
 
 waitForChess();

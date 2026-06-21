@@ -37,6 +37,21 @@
       <aside class="side-panel" aria-label="Game details">
         <section class="panel-section">
           <div class="panel-heading">
+            <h2>Shaders</h2>
+          </div>
+          <div class="shader-controls" role="group" aria-label="Attack shader visibility">
+            <button class="shader-option active" type="button" data-shader-mode="both">Both</button>
+            <button class="shader-option" type="button" data-shader-mode="w">White</button>
+            <button class="shader-option" type="button" data-shader-mode="b">Black</button>
+          </div>
+          <div class="shader-legend" aria-label="Attack shader colors">
+            <span><i class="legend-red"></i>Against you</span>
+            <span><i class="legend-blue"></i>By you</span>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-heading">
             <h2>Captured</h2>
           </div>
           <div class="captures">
