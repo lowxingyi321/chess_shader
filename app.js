@@ -49,7 +49,6 @@ const moveBackButton = document.querySelector("#move-back");
 const movePlayButton = document.querySelector("#move-play");
 const moveNextButton = document.querySelector("#move-next");
 const chatPromptEl = document.querySelector("#chat-prompt");
-const openChatGptWindowButton = document.querySelector("#open-chatgpt-window");
 const copyChatPromptButton = document.querySelector("#copy-chat-prompt");
 const chatPromptStateEl = document.querySelector("#chat-prompt-state");
 
@@ -864,12 +863,6 @@ function resetChatPromptStatus() {
 async function copyChatPrompt() {
   const prompt = buildChatGptCoachPrompt();
 
-  await copyPromptText(prompt);
-
-  updateChatPrompt();
-}
-
-async function copyPromptText(prompt) {
   try {
     await navigator.clipboard.writeText(prompt);
     chatPromptStatus = "Copied";
@@ -879,33 +872,8 @@ async function copyPromptText(prompt) {
     chatPromptEl.select();
     chatPromptStatus = "Select";
   }
-}
 
-async function openChatGptCoachWindow() {
-  await copyPromptText(buildChatGptCoachPrompt());
   updateChatPrompt();
-
-  const width = 520;
-  const height = 760;
-  const left = Math.max(0, window.screenX + window.outerWidth - width - 24);
-  const top = Math.max(0, window.screenY + 48);
-  const features = [
-    "popup=yes",
-    `width=${width}`,
-    `height=${height}`,
-    `left=${left}`,
-    `top=${top}`,
-  ].join(",");
-  const chatWindow = window.open("https://chatgpt.com/", "chatgptCoach", features);
-
-  if (chatWindow) {
-    chatWindow.focus();
-    return;
-  }
-
-  chatPromptStatus = "Blocked";
-  updateChatPrompt();
-  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 }
 
 function importPgn(pgnText) {
@@ -1205,10 +1173,6 @@ movePlayButton.addEventListener("click", () => {
 
 copyChatPromptButton.addEventListener("click", () => {
   copyChatPrompt();
-});
-
-openChatGptWindowButton.addEventListener("click", () => {
-  openChatGptCoachWindow();
 });
 
 waitForChess();
