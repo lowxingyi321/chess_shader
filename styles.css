@@ -553,7 +553,7 @@ button {
   display: grid;
   grid-template-columns: 34px 1fr 1fr;
   gap: 8px;
-  align-items: center;
+  align-items: start;
   min-height: 34px;
   padding: 6px 8px;
   border-radius: 8px;
@@ -563,9 +563,76 @@ button {
 }
 
 .move-row span:first-child {
+  padding-top: 6px;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.move-cell {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.move-button,
+.branch-choice {
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.move-button {
+  min-height: 28px;
+  padding: 4px 6px;
+}
+
+.move-button:hover,
+.move-button:focus-visible,
+.branch-choice:hover,
+.branch-choice:focus-visible {
+  background: rgba(53, 95, 138, 0.12);
+  outline: 2px solid rgba(53, 95, 138, 0.2);
+}
+
+.move-button.active {
+  background: #26302d;
+  color: #ffffff;
+}
+
+.move-button.future {
+  color: rgba(100, 112, 109, 0.62);
+}
+
+.move-button.future.active {
+  color: #ffffff;
+}
+
+.branch-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.branch-choice {
+  min-height: 22px;
+  padding: 2px 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.branch-choice.active {
+  background: rgba(38, 48, 45, 0.12);
+  color: var(--ink);
 }
 
 .loading,

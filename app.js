@@ -62,10 +62,14 @@ let engineMoveRequestId = 0;
 let activeEngineRequestId = 0;
 let activeEngineFen = null;
 let pgnStatus = "Ready";
+let moveTree = null;
+let currentNodeId = "root";
+let nextNodeId = 1;
 
 function waitForChess() {
   if (window.Chess) {
     game = new window.Chess();
+    moveTree = createMoveTree();
     render();
     return;
   }
@@ -75,12 +79,39 @@ function waitForChess() {
   setTimeout(() => {
     if (window.Chess) {
       game = new window.Chess();
+      moveTree = createMoveTree();
       render();
     } else {
       boardEl.className = "error";
       boardEl.textContent = "Chess engine could not load.";
     }
   }, 700);
+}
+
+function createMoveTree(rootFen) {
+  const rootGame = new window.Chess();
+  if (rootFen) {
+    rootGame.load(rootFen);
+  }
+
+  return {
+    rootId: "root",
+    nodes: {
+      root: {
+        id: "root",
+        parentId: null,
+        children: [],
+        mainlineChildId: null,
+        fen: rootGame.fen(),
+        san: "Start",
+        from: null,
+        to: null,
+        promotion: null,
+        color: null,
+        moveNumber: 0,
+      },
+    },
+  };
 }
 
 function getFiles() {
@@ -388,14 +419,11 @@ function selectSquare(square) {
 
 function movePiece(move) {
   const promotion = move.flags.includes("p") ? choosePromotion(move.color) : undefined;
-  game.move({
+  applyMoveToTree({
     from: move.from,
     to: move.to,
     promotion,
-  });
-  clearSelection();
-  render();
-  requestEngineMoveIfNeeded();
+  }, { requestEngine: true });
 }
 
 function choosePromotion(color) {
@@ -408,6 +436,137 @@ function choosePromotion(color) {
 function clearSelection() {
   selectedSquare = null;
   legalMoves = [];
+}
+
+function getCurrentNode() {
+  return moveTree.nodes[currentNodeId];
+}
+
+function getNodePly(nodeId) {
+  let ply = 0;
+  let node = moveTree.nodes[nodeId];
+
+  while (node && node.parentId) {
+    ply += 1;
+    node = moveTree.nodes[node.parentId];
+  }
+
+  return ply;
+}
+
+function getActivePath() {
+  const path = [];
+  let node = moveTree.nodes[moveTree.rootId];
+
+  while (node && node.mainlineChildId) {
+    const child = moveTree.nodes[node.mainlineChildId];
+    if (!child) break;
+    path.push(child);
+    node = child;
+  }
+
+  return path;
+}
+
+function isNodeOnLine(nodeId, path) {
+  return nodeId === moveTree.rootId || path.some((node) => node.id === nodeId);
+}
+
+function setActiveLineToNode(nodeId) {
+  let node = moveTree.nodes[nodeId];
+
+  while (node && node.parentId) {
+    const parent = moveTree.nodes[node.parentId];
+    parent.mainlineChildId = node.id;
+    node = parent;
+  }
+}
+
+function navigateToNode(nodeId, options = {}) {
+  const node = moveTree.nodes[nodeId];
+  if (!node) return;
+
+  if (options.stopEngine !== false) {
+    stopEngineSearch();
+  }
+  setActiveLineToNode(nodeId);
+  currentNodeId = nodeId;
+  game = new window.Chess();
+  game.load(node.fen);
+  clearSelection();
+  render();
+
+  if (options.requestEngine) {
+    requestEngineMoveIfNeeded();
+  }
+}
+
+function findMatchingChild(parentNode, move) {
+  return parentNode.children
+    .map((childId) => moveTree.nodes[childId])
+    .find((child) => {
+      const samePromotion = (child.promotion || "") === (move.promotion || "");
+      return child.from === move.from && child.to === move.to && samePromotion;
+    });
+}
+
+function applyMoveToTree(move, options = {}) {
+  const parentNode = getCurrentNode();
+  const matchingChild = findMatchingChild(parentNode, move);
+
+  if (matchingChild) {
+    if (options.render === false) {
+      setActiveLineToNode(matchingChild.id);
+      currentNodeId = matchingChild.id;
+      game.load(matchingChild.fen);
+      clearSelection();
+    } else {
+      navigateToNode(matchingChild.id, { stopEngine: false });
+    }
+    if (options.requestEngine) {
+      requestEngineMoveIfNeeded();
+    }
+    return matchingChild;
+  }
+
+  const moveResult = game.move(move);
+  if (!moveResult) return null;
+
+  const node = createMoveNode(parentNode, moveResult);
+  moveTree.nodes[node.id] = node;
+  parentNode.children.push(node.id);
+  parentNode.mainlineChildId = node.id;
+  currentNodeId = node.id;
+  clearSelection();
+  if (options.render !== false) {
+    render();
+  }
+
+  if (options.requestEngine) {
+    requestEngineMoveIfNeeded();
+  }
+
+  return node;
+}
+
+function createMoveNode(parentNode, moveResult) {
+  return {
+    id: `m${nextNodeId++}`,
+    parentId: parentNode.id,
+    children: [],
+    mainlineChildId: null,
+    fen: game.fen(),
+    san: moveResult.san,
+    from: moveResult.from,
+    to: moveResult.to,
+    promotion: moveResult.promotion || null,
+    color: moveResult.color,
+    moveNumber: getMoveNumberFromFen(parentNode.fen),
+  };
+}
+
+function getMoveNumberFromFen(fen) {
+  return Number(fen.split(" ")[5]) || 1;
 }
 
 function canHumanMove() {
@@ -480,10 +639,8 @@ function handleEngineMessage(message) {
 
   const move = parseEngineMove(bestMove);
   if (move) {
-    game.move(move);
+    applyMoveToTree(move);
   }
-  clearSelection();
-  render();
 }
 
 function requestEngineMoveIfNeeded() {
@@ -569,14 +726,32 @@ function importPgn(pgnText) {
   }
 
   stopEngineSearch();
-  game = importedGame;
+  moveTree = createMoveTree(getPgnStartingFen(trimmedPgn));
+  nextNodeId = 1;
+  currentNodeId = moveTree.rootId;
+  game = new window.Chess();
+  game.load(getCurrentNode().fen);
+  importedGame.history({ verbose: true }).forEach((move) => {
+    applyMoveToTree(
+      {
+        from: move.from,
+        to: move.to,
+        promotion: move.promotion,
+      },
+      { render: false },
+    );
+  });
   if (engineReady) {
     sendEngineCommand("ucinewgame");
   }
   clearSelection();
   pgnStatus = "Imported";
   render();
-  requestEngineMoveIfNeeded();
+}
+
+function getPgnStartingFen(pgnText) {
+  const match = pgnText.match(/\[FEN\s+"([^"]+)"\]/i);
+  return match ? match[1] : null;
 }
 
 function updatePgnStatus() {
@@ -606,18 +781,82 @@ function updateStatus() {
 }
 
 function updateHistory() {
-  const history = game.history();
-  moveCountEl.textContent = history.length;
+  const activePath = getActivePath();
+  const currentPly = getNodePly(currentNodeId);
+  moveCountEl.textContent = activePath.length;
   moveListEl.innerHTML = "";
 
-  for (let i = 0; i < history.length; i += 2) {
+  for (let i = 0; i < activePath.length; i += 2) {
     const row = document.createElement("li");
     row.className = "move-row";
-    row.innerHTML = `<span>${i / 2 + 1}.</span><span>${history[i] || ""}</span><span>${history[i + 1] || ""}</span>`;
+    row.appendChild(createMoveNumberCell(i / 2 + 1));
+    row.appendChild(createMoveCell(activePath[i], i + 1, currentPly, activePath));
+    row.appendChild(createMoveCell(activePath[i + 1], i + 2, currentPly, activePath));
     moveListEl.appendChild(row);
   }
 
   moveListEl.scrollTop = moveListEl.scrollHeight;
+}
+
+function createMoveNumberCell(moveNumber) {
+  const cell = document.createElement("span");
+  cell.textContent = `${moveNumber}.`;
+  return cell;
+}
+
+function createMoveCell(node, ply, currentPly, activePath) {
+  const cell = document.createElement("div");
+  cell.className = "move-cell";
+
+  if (!node) return cell;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "move-button";
+  button.textContent = node.san;
+  button.title = `${node.from}${node.to}${node.promotion || ""}`;
+  button.classList.toggle("active", node.id === currentNodeId);
+  button.classList.toggle("future", ply > currentPly);
+  button.addEventListener("click", () => navigateToNode(node.id));
+  cell.appendChild(button);
+
+  const branches = createBranchChoices(node, activePath);
+  if (branches) {
+    cell.appendChild(branches);
+  }
+
+  return cell;
+}
+
+function createBranchChoices(node, activePath) {
+  const parent = moveTree.nodes[node.parentId];
+  if (!parent || parent.children.length < 2) return null;
+
+  const branches = document.createElement("div");
+  branches.className = "branch-choices";
+
+  parent.children.forEach((childId, index) => {
+    const child = moveTree.nodes[childId];
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "branch-choice";
+    button.textContent = child.san;
+    button.title = `${child.from}${child.to}${child.promotion || ""}`;
+    button.classList.toggle("active", isNodeOnLine(child.id, activePath));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      navigateToNode(child.id);
+    });
+    branches.appendChild(button);
+
+    if (index < parent.children.length - 1) {
+      const separator = document.createElement("span");
+      separator.textContent = "/";
+      branches.appendChild(separator);
+    }
+  });
+
+  return branches;
 }
 
 function updateCaptured() {
@@ -660,23 +899,22 @@ flipButton.addEventListener("click", () => {
 undoButton.addEventListener("click", () => {
   const wasEngineThinking = engineThinking;
   stopEngineSearch();
-  game.undo();
-  if (gameMode === "stockfish" && !wasEngineThinking) {
-    game.undo();
+  const steps = gameMode === "stockfish" && !wasEngineThinking ? 2 : 1;
+  let targetNode = getCurrentNode();
+
+  for (let i = 0; i < steps && targetNode.parentId; i += 1) {
+    targetNode = moveTree.nodes[targetNode.parentId];
   }
-  clearSelection();
-  render();
+
+  navigateToNode(targetNode.id, { stopEngine: false });
 });
 
 resetButton.addEventListener("click", () => {
   stopEngineSearch();
-  game.reset();
   if (engineReady) {
     sendEngineCommand("ucinewgame");
   }
-  clearSelection();
-  render();
-  requestEngineMoveIfNeeded();
+  navigateToNode(moveTree.rootId, { stopEngine: false });
 });
 
 shaderButtons.forEach((button) => {
