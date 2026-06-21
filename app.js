@@ -45,6 +45,9 @@ const pgnInputEl = document.querySelector("#pgn-input");
 const pgnFileInput = document.querySelector("#pgn-file");
 const importPgnButton = document.querySelector("#import-pgn");
 const pgnStateEl = document.querySelector("#pgn-state");
+const moveBackButton = document.querySelector("#move-back");
+const movePlayButton = document.querySelector("#move-play");
+const moveNextButton = document.querySelector("#move-next");
 
 let game;
 let selectedSquare = null;
@@ -65,6 +68,8 @@ let pgnStatus = "Ready";
 let moveTree = null;
 let currentNodeId = "root";
 let nextNodeId = 1;
+let playbackTimer = null;
+let isPlayingLine = false;
 
 function waitForChess() {
   if (window.Chess) {
@@ -209,6 +214,7 @@ function render() {
   updateShaderControls();
   updateOpponentControls();
   updatePgnStatus();
+  updatePlaybackControls();
 }
 
 function getAttackAlpha(count, strongestAttack) {
@@ -489,6 +495,9 @@ function navigateToNode(nodeId, options = {}) {
   if (options.stopEngine !== false) {
     stopEngineSearch();
   }
+  if (options.stopPlayback !== false) {
+    stopPlayback();
+  }
   setActiveLineToNode(nodeId);
   currentNodeId = nodeId;
   game = new window.Chess();
@@ -501,6 +510,65 @@ function navigateToNode(nodeId, options = {}) {
   }
 }
 
+function getPreviousNodeId() {
+  return getCurrentNode().parentId;
+}
+
+function getNextNodeId() {
+  return getCurrentNode().mainlineChildId;
+}
+
+function stepToPreviousMove() {
+  const previousNodeId = getPreviousNodeId();
+  if (!previousNodeId) return false;
+  navigateToNode(previousNodeId);
+  return true;
+}
+
+function stepToNextMove(options = {}) {
+  const nextNodeId = getNextNodeId();
+  if (!nextNodeId) return false;
+  navigateToNode(nextNodeId, options);
+  return true;
+}
+
+function togglePlayback() {
+  if (isPlayingLine) {
+    stopPlayback();
+    render();
+    return;
+  }
+
+  if (!getNextNodeId()) return;
+
+  stopEngineSearch();
+  isPlayingLine = true;
+  updatePlaybackControls();
+  playbackTimer = window.setInterval(() => {
+    if (!stepToNextMove({ stopEngine: false, stopPlayback: false })) {
+      stopPlayback();
+      render();
+    }
+  }, 850);
+}
+
+function stopPlayback() {
+  if (playbackTimer) {
+    window.clearInterval(playbackTimer);
+    playbackTimer = null;
+  }
+  isPlayingLine = false;
+}
+
+function updatePlaybackControls() {
+  moveBackButton.disabled = !getPreviousNodeId();
+  moveNextButton.disabled = !getNextNodeId();
+  movePlayButton.disabled = !getNextNodeId() && !isPlayingLine;
+  movePlayButton.textContent = isPlayingLine ? "Ⅱ" : "▶";
+  movePlayButton.setAttribute("aria-label", isPlayingLine ? "Pause moves" : "Play moves");
+  movePlayButton.title = isPlayingLine ? "Pause moves" : "Play moves";
+}
+
 function findMatchingChild(parentNode, move) {
   return parentNode.children
     .map((childId) => moveTree.nodes[childId])
@@ -511,6 +579,7 @@ function findMatchingChild(parentNode, move) {
 }
 
 function applyMoveToTree(move, options = {}) {
+  stopPlayback();
   const parentNode = getCurrentNode();
   const matchingChild = findMatchingChild(parentNode, move);
 
@@ -726,6 +795,7 @@ function importPgn(pgnText) {
   }
 
   stopEngineSearch();
+  stopPlayback();
   moveTree = createMoveTree(getPgnStartingFen(trimmedPgn));
   nextNodeId = 1;
   currentNodeId = moveTree.rootId;
@@ -795,7 +865,10 @@ function updateHistory() {
     moveListEl.appendChild(row);
   }
 
-  moveListEl.scrollTop = moveListEl.scrollHeight;
+  const activeMove = moveListEl.querySelector(".move-button.active");
+  if (activeMove) {
+    activeMove.scrollIntoView({ block: "nearest" });
+  }
 }
 
 function createMoveNumberCell(moveNumber) {
@@ -911,6 +984,7 @@ undoButton.addEventListener("click", () => {
 
 resetButton.addEventListener("click", () => {
   stopEngineSearch();
+  stopPlayback();
   if (engineReady) {
     sendEngineCommand("ucinewgame");
   }
@@ -927,6 +1001,7 @@ shaderButtons.forEach((button) => {
 opponentButtons.forEach((button) => {
   button.addEventListener("click", () => {
     stopEngineSearch();
+    stopPlayback();
     gameMode = button.dataset.gameMode;
     engineStatus = gameMode === "human" ? "Human" : engineReady ? "Ready" : "Loading";
     clearSelection();
@@ -939,6 +1014,7 @@ opponentButtons.forEach((button) => {
 sideButtons.forEach((button) => {
   button.addEventListener("click", () => {
     stopEngineSearch();
+    stopPlayback();
     humanColor = button.dataset.humanColor;
     clearSelection();
     render();
@@ -984,6 +1060,18 @@ pgnFileInput.addEventListener("change", () => {
   });
 
   reader.readAsText(file);
+});
+
+moveBackButton.addEventListener("click", () => {
+  stepToPreviousMove();
+});
+
+moveNextButton.addEventListener("click", () => {
+  stepToNextMove();
+});
+
+movePlayButton.addEventListener("click", () => {
+  togglePlayback();
 });
 
 waitForChess();

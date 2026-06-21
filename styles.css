@@ -540,6 +540,35 @@ button {
   flex-direction: column;
 }
 
+.playback-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.playback-controls button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.playback-controls button:hover,
+.playback-controls button:focus-visible {
+  border-color: var(--dark-square);
+  outline: 3px solid rgba(101, 129, 108, 0.2);
+}
+
+.playback-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .move-list {
   margin: 0;
   padding: 0;
