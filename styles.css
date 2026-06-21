@@ -121,6 +121,24 @@ button {
   margin: 0 auto;
 }
 
+.board-lower-panels {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.board-lower-panels .panel-section {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.board-lower-panels .panel-section + .panel-section {
+  border-top: 1px solid var(--line);
+}
+
 .board-grid {
   display: grid;
   grid-template-columns: 24px 1fr 24px;
@@ -535,9 +553,13 @@ button {
 }
 
 .moves-section {
-  max-height: min(520px, 58vh);
+  max-height: min(420px, 46vh);
   display: flex;
   flex-direction: column;
+}
+
+.moves-panel {
+  min-height: 310px;
 }
 
 .playback-controls {
@@ -689,6 +711,10 @@ button {
 
   .side-panel {
     box-shadow: 0 16px 42px rgba(42, 38, 29, 0.12);
+  }
+
+  .board-lower-panels {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -32,6 +32,40 @@
           </div>
           <div class="files files-bottom" aria-hidden="true"></div>
         </div>
+
+        <div class="board-lower-panels">
+          <section class="panel-section pgn-panel">
+            <div class="panel-heading">
+              <h2>PGN</h2>
+              <span id="pgn-state" class="pgn-state">Ready</span>
+            </div>
+            <textarea
+              id="pgn-input"
+              class="pgn-input"
+              rows="6"
+              spellcheck="false"
+              placeholder="Paste PGN here"
+            ></textarea>
+            <div class="pgn-actions">
+              <button id="import-pgn" type="button">Import</button>
+              <label for="pgn-file">File</label>
+              <input id="pgn-file" type="file" accept=".pgn,text/plain" />
+            </div>
+          </section>
+
+          <section class="panel-section moves-section moves-panel">
+            <div class="panel-heading">
+              <h2>Moves</h2>
+              <span id="move-count">0</span>
+            </div>
+            <div class="playback-controls" aria-label="Move playback controls">
+              <button id="move-back" type="button" title="Previous move" aria-label="Previous move">‹</button>
+              <button id="move-play" type="button" title="Play moves" aria-label="Play moves">▶</button>
+              <button id="move-next" type="button" title="Next move" aria-label="Next move">›</button>
+            </div>
+            <ol id="move-list" class="move-list" aria-label="Move history"></ol>
+          </section>
+        </div>
       </section>
 
       <aside class="side-panel" aria-label="Game details">
@@ -73,25 +107,6 @@
 
         <section class="panel-section">
           <div class="panel-heading">
-            <h2>PGN</h2>
-            <span id="pgn-state" class="pgn-state">Ready</span>
-          </div>
-          <textarea
-            id="pgn-input"
-            class="pgn-input"
-            rows="6"
-            spellcheck="false"
-            placeholder="Paste PGN here"
-          ></textarea>
-          <div class="pgn-actions">
-            <button id="import-pgn" type="button">Import</button>
-            <label for="pgn-file">File</label>
-            <input id="pgn-file" type="file" accept=".pgn,text/plain" />
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <div class="panel-heading">
             <h2>Captured</h2>
           </div>
           <div class="captures">
@@ -106,18 +121,6 @@
           </div>
         </section>
 
-        <section class="panel-section moves-section">
-          <div class="panel-heading">
-            <h2>Moves</h2>
-            <span id="move-count">0</span>
-          </div>
-          <div class="playback-controls" aria-label="Move playback controls">
-            <button id="move-back" type="button" title="Previous move" aria-label="Previous move">‹</button>
-            <button id="move-play" type="button" title="Play moves" aria-label="Play moves">▶</button>
-            <button id="move-next" type="button" title="Next move" aria-label="Next move">›</button>
-          </div>
-          <ol id="move-list" class="move-list" aria-label="Move history"></ol>
-        </section>
       </aside>
     </main>
   </body>
