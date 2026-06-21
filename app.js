@@ -865,10 +865,6 @@ function updateHistory() {
     moveListEl.appendChild(row);
   }
 
-  const activeMove = moveListEl.querySelector(".move-button.active");
-  if (activeMove) {
-    activeMove.scrollIntoView({ block: "nearest" });
-  }
 }
 
 function createMoveNumberCell(moveNumber) {
