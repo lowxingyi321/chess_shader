@@ -73,6 +73,25 @@
 
         <section class="panel-section">
           <div class="panel-heading">
+            <h2>PGN</h2>
+            <span id="pgn-state" class="pgn-state">Ready</span>
+          </div>
+          <textarea
+            id="pgn-input"
+            class="pgn-input"
+            rows="6"
+            spellcheck="false"
+            placeholder="Paste PGN here"
+          ></textarea>
+          <div class="pgn-actions">
+            <button id="import-pgn" type="button">Import</button>
+            <label for="pgn-file">File</label>
+            <input id="pgn-file" type="file" accept=".pgn,text/plain" />
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-heading">
             <h2>Captured</h2>
           </div>
           <div class="captures">

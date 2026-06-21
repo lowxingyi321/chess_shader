@@ -291,6 +291,24 @@ button {
   font-weight: 800;
 }
 
+.pgn-state {
+  display: inline-grid;
+  place-items: center;
+  min-width: 64px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #edf2ee;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.pgn-state.error-state {
+  background: rgba(176, 68, 62, 0.12);
+  color: var(--capture);
+}
+
 .opponent-controls,
 .side-controls {
   display: grid;
@@ -421,6 +439,59 @@ button {
 
 .legend-blue {
   background: #1f70c2;
+}
+
+.pgn-input {
+  width: 100%;
+  min-height: 128px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.pgn-input:focus {
+  border-color: var(--dark-square);
+  outline: 3px solid rgba(101, 129, 108, 0.2);
+}
+
+.pgn-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pgn-actions button,
+.pgn-actions label {
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: #26302d;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.pgn-actions button:hover,
+.pgn-actions button:focus-visible,
+.pgn-actions label:hover,
+.pgn-actions label:focus-within {
+  outline: 2px solid rgba(53, 95, 138, 0.22);
+}
+
+.pgn-actions input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 #move-count {

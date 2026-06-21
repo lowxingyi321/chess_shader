@@ -41,6 +41,10 @@ const engineOptionsEl = document.querySelector("#engine-options");
 const engineStateEl = document.querySelector("#engine-state");
 const stockfishLevelInput = document.querySelector("#stockfish-level");
 const stockfishLevelValueEl = document.querySelector("#stockfish-level-value");
+const pgnInputEl = document.querySelector("#pgn-input");
+const pgnFileInput = document.querySelector("#pgn-file");
+const importPgnButton = document.querySelector("#import-pgn");
+const pgnStateEl = document.querySelector("#pgn-state");
 
 let game;
 let selectedSquare = null;
@@ -57,6 +61,7 @@ let engineStatus = "Human";
 let engineMoveRequestId = 0;
 let activeEngineRequestId = 0;
 let activeEngineFen = null;
+let pgnStatus = "Ready";
 
 function waitForChess() {
   if (window.Chess) {
@@ -172,6 +177,7 @@ function render() {
   updateCaptured();
   updateShaderControls();
   updateOpponentControls();
+  updatePgnStatus();
 }
 
 function getAttackAlpha(count, strongestAttack) {
@@ -544,6 +550,40 @@ function updateOpponentControls() {
   stockfishLevelInput.value = String(stockfishLevel);
 }
 
+function importPgn(pgnText) {
+  const trimmedPgn = pgnText.trim();
+
+  if (!trimmedPgn) {
+    pgnStatus = "Empty";
+    updatePgnStatus();
+    return;
+  }
+
+  const importedGame = new window.Chess();
+  const loaded = importedGame.load_pgn(trimmedPgn, { sloppy: true });
+
+  if (!loaded) {
+    pgnStatus = "Invalid";
+    updatePgnStatus();
+    return;
+  }
+
+  stopEngineSearch();
+  game = importedGame;
+  if (engineReady) {
+    sendEngineCommand("ucinewgame");
+  }
+  clearSelection();
+  pgnStatus = "Imported";
+  render();
+  requestEngineMoveIfNeeded();
+}
+
+function updatePgnStatus() {
+  pgnStateEl.textContent = pgnStatus;
+  pgnStateEl.classList.toggle("error-state", pgnStatus === "Invalid" || pgnStatus === "Empty");
+}
+
 function updateStatus() {
   const turn = game.turn() === "w" ? "White" : "Black";
 
@@ -672,6 +712,40 @@ stockfishLevelInput.addEventListener("input", () => {
   stockfishLevel = Number(stockfishLevelInput.value);
   stockfishLevelValueEl.textContent = stockfishLevel;
   sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
+});
+
+importPgnButton.addEventListener("click", () => {
+  importPgn(pgnInputEl.value);
+});
+
+pgnInputEl.addEventListener("input", () => {
+  if (pgnStatus !== "Ready") {
+    pgnStatus = "Ready";
+    updatePgnStatus();
+  }
+});
+
+pgnFileInput.addEventListener("change", () => {
+  const file = pgnFileInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  pgnStatus = "Loading";
+  updatePgnStatus();
+
+  reader.addEventListener("load", () => {
+    pgnInputEl.value = String(reader.result || "");
+    importPgn(pgnInputEl.value);
+    pgnFileInput.value = "";
+  });
+
+  reader.addEventListener("error", () => {
+    pgnStatus = "Invalid";
+    updatePgnStatus();
+    pgnFileInput.value = "";
+  });
+
+  reader.readAsText(file);
 });
 
 waitForChess();
