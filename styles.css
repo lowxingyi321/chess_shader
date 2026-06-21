@@ -278,6 +278,88 @@ button {
   font-size: 0.95rem;
 }
 
+.engine-state {
+  display: inline-grid;
+  place-items: center;
+  min-width: 72px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #edf2ee;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.opponent-controls,
+.side-controls {
+  display: grid;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.opponent-controls {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.side-controls {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 12px;
+}
+
+.opponent-option,
+.side-option {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.opponent-option:hover,
+.opponent-option:focus-visible,
+.side-option:hover,
+.side-option:focus-visible {
+  color: var(--ink);
+  outline: 2px solid rgba(53, 95, 138, 0.22);
+}
+
+.opponent-option.active,
+.side-option.active {
+  background: #26302d;
+  color: #ffffff;
+}
+
+.level-control {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.level-control span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.level-control strong {
+  color: var(--ink);
+}
+
+.level-control input {
+  width: 100%;
+  accent-color: #26302d;
+}
+
 .shader-controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

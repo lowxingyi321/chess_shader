@@ -35,12 +35,28 @@ const flipButton = document.querySelector("#flip-board");
 const undoButton = document.querySelector("#undo-move");
 const resetButton = document.querySelector("#reset-game");
 const shaderButtons = document.querySelectorAll(".shader-option");
+const opponentButtons = document.querySelectorAll(".opponent-option");
+const sideButtons = document.querySelectorAll(".side-option");
+const engineOptionsEl = document.querySelector("#engine-options");
+const engineStateEl = document.querySelector("#engine-state");
+const stockfishLevelInput = document.querySelector("#stockfish-level");
+const stockfishLevelValueEl = document.querySelector("#stockfish-level-value");
 
 let game;
 let selectedSquare = null;
 let legalMoves = [];
 let flipped = false;
 let shaderMode = "both";
+let gameMode = "human";
+let humanColor = "w";
+let stockfishLevel = 8;
+let engine = null;
+let engineReady = false;
+let engineThinking = false;
+let engineStatus = "Human";
+let engineMoveRequestId = 0;
+let activeEngineRequestId = 0;
+let activeEngineFen = null;
 
 function waitForChess() {
   if (window.Chess) {
@@ -155,6 +171,7 @@ function render() {
   updateHistory();
   updateCaptured();
   updateShaderControls();
+  updateOpponentControls();
 }
 
 function getAttackAlpha(count, strongestAttack) {
@@ -322,6 +339,8 @@ function isOnBoard(file, rank) {
 }
 
 function handleSquareClick(square) {
+  if (!canHumanMove()) return;
+
   const piece = game.get(square);
 
   if (!selectedSquare) {
@@ -352,7 +371,7 @@ function handleSquareClick(square) {
 
 function selectSquare(square) {
   const piece = game.get(square);
-  if (!piece || piece.color !== game.turn()) {
+  if (!canHumanMove() || !piece || piece.color !== game.turn()) {
     return;
   }
 
@@ -370,6 +389,7 @@ function movePiece(move) {
   });
   clearSelection();
   render();
+  requestEngineMoveIfNeeded();
 }
 
 function choosePromotion(color) {
@@ -382,6 +402,146 @@ function choosePromotion(color) {
 function clearSelection() {
   selectedSquare = null;
   legalMoves = [];
+}
+
+function canHumanMove() {
+  return gameMode === "human" || (!engineThinking && game.turn() === humanColor);
+}
+
+function isGameOver() {
+  return game.in_checkmate() || game.in_stalemate() || game.in_draw();
+}
+
+function initEngine() {
+  if (engine || gameMode !== "stockfish") return;
+
+  engineReady = false;
+  engineThinking = false;
+  engineStatus = "Loading";
+  updateOpponentControls();
+
+  try {
+    engine = new Worker("vendor/stockfish/stockfish-18-lite-single.js");
+  } catch (error) {
+    engine = null;
+    engineStatus = "Unavailable";
+    updateOpponentControls();
+    return;
+  }
+
+  engine.onmessage = (event) => handleEngineMessage(String(event.data));
+  engine.onerror = () => {
+    engineReady = false;
+    engineThinking = false;
+    engineStatus = "Unavailable";
+    updateOpponentControls();
+  };
+
+  sendEngineCommand("uci");
+  sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
+  sendEngineCommand("isready");
+}
+
+function handleEngineMessage(message) {
+  if (message === "readyok") {
+    engineReady = true;
+    engineStatus = "Ready";
+    sendEngineCommand("ucinewgame");
+    updateOpponentControls();
+    requestEngineMoveIfNeeded();
+    return;
+  }
+
+  if (!message.startsWith("bestmove ")) return;
+
+  const requestId = activeEngineRequestId;
+  const searchedFen = activeEngineFen;
+  const bestMove = message.split(/\s+/)[1];
+  engineThinking = false;
+  activeEngineFen = null;
+  engineStatus = engineReady ? "Ready" : "Loading";
+  updateOpponentControls();
+
+  if (
+    requestId !== engineMoveRequestId ||
+    searchedFen !== game.fen() ||
+    gameMode !== "stockfish" ||
+    !bestMove ||
+    bestMove === "(none)"
+  ) {
+    return;
+  }
+
+  const move = parseEngineMove(bestMove);
+  if (move) {
+    game.move(move);
+  }
+  clearSelection();
+  render();
+}
+
+function requestEngineMoveIfNeeded() {
+  if (gameMode !== "stockfish" || !engineReady || engineThinking || isGameOver()) return;
+  if (game.turn() === humanColor) return;
+
+  engineThinking = true;
+  engineStatus = "Thinking";
+  activeEngineRequestId = ++engineMoveRequestId;
+  activeEngineFen = game.fen();
+  clearSelection();
+  render();
+
+  sendEngineCommand(`position fen ${activeEngineFen}`);
+  sendEngineCommand(`go movetime ${getEngineMoveTime()}`);
+}
+
+function parseEngineMove(bestMove) {
+  const from = bestMove.slice(0, 2);
+  const to = bestMove.slice(2, 4);
+  const promotion = bestMove.slice(4, 5) || undefined;
+  const move = { from, to };
+
+  if (promotion) {
+    move.promotion = promotion;
+  }
+
+  return move;
+}
+
+function getEngineMoveTime() {
+  return Math.min(1800, 250 + stockfishLevel * 80);
+}
+
+function sendEngineCommand(command) {
+  if (engine) {
+    engine.postMessage(command);
+  }
+}
+
+function stopEngineSearch() {
+  engineMoveRequestId += 1;
+  activeEngineRequestId = engineMoveRequestId;
+  activeEngineFen = null;
+  if (engineThinking) {
+    sendEngineCommand("stop");
+  }
+  engineThinking = false;
+  engineStatus = engineReady ? "Ready" : gameMode === "stockfish" ? "Loading" : "Human";
+}
+
+function updateOpponentControls() {
+  opponentButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.gameMode === gameMode);
+  });
+
+  sideButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.humanColor === humanColor);
+  });
+
+  engineOptionsEl.hidden = gameMode !== "stockfish";
+  engineStateEl.textContent = gameMode === "human" ? "Human" : engineStatus;
+  stockfishLevelValueEl.textContent = stockfishLevel;
+  stockfishLevelInput.value = String(stockfishLevel);
 }
 
 function updateStatus() {
@@ -458,15 +618,25 @@ flipButton.addEventListener("click", () => {
 });
 
 undoButton.addEventListener("click", () => {
+  const wasEngineThinking = engineThinking;
+  stopEngineSearch();
   game.undo();
+  if (gameMode === "stockfish" && !wasEngineThinking) {
+    game.undo();
+  }
   clearSelection();
   render();
 });
 
 resetButton.addEventListener("click", () => {
+  stopEngineSearch();
   game.reset();
+  if (engineReady) {
+    sendEngineCommand("ucinewgame");
+  }
   clearSelection();
   render();
+  requestEngineMoveIfNeeded();
 });
 
 shaderButtons.forEach((button) => {
@@ -474,6 +644,34 @@ shaderButtons.forEach((button) => {
     shaderMode = button.dataset.shaderMode;
     render();
   });
+});
+
+opponentButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    stopEngineSearch();
+    gameMode = button.dataset.gameMode;
+    engineStatus = gameMode === "human" ? "Human" : engineReady ? "Ready" : "Loading";
+    clearSelection();
+    render();
+    initEngine();
+    requestEngineMoveIfNeeded();
+  });
+});
+
+sideButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    stopEngineSearch();
+    humanColor = button.dataset.humanColor;
+    clearSelection();
+    render();
+    requestEngineMoveIfNeeded();
+  });
+});
+
+stockfishLevelInput.addEventListener("input", () => {
+  stockfishLevel = Number(stockfishLevelInput.value);
+  stockfishLevelValueEl.textContent = stockfishLevel;
+  sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
 });
 
 waitForChess();

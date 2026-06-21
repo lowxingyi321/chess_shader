@@ -37,6 +37,27 @@
       <aside class="side-panel" aria-label="Game details">
         <section class="panel-section">
           <div class="panel-heading">
+            <h2>Opponent</h2>
+            <span id="engine-state" class="engine-state">Human</span>
+          </div>
+          <div class="opponent-controls" role="group" aria-label="Opponent mode">
+            <button class="opponent-option active" type="button" data-game-mode="human">Human</button>
+            <button class="opponent-option" type="button" data-game-mode="stockfish">Stockfish</button>
+          </div>
+          <div id="engine-options" class="engine-options" hidden>
+            <div class="side-controls" role="group" aria-label="Human side">
+              <button class="side-option active" type="button" data-human-color="w">White</button>
+              <button class="side-option" type="button" data-human-color="b">Black</button>
+            </div>
+            <label class="level-control" for="stockfish-level">
+              <span>Level <strong id="stockfish-level-value">8</strong></span>
+              <input id="stockfish-level" type="range" min="1" max="20" value="8" />
+            </label>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-heading">
             <h2>Shaders</h2>
           </div>
           <div class="shader-controls" role="group" aria-label="Attack shader visibility">
