@@ -327,6 +327,24 @@ button {
   color: var(--capture);
 }
 
+.chat-prompt-state {
+  display: inline-grid;
+  place-items: center;
+  min-width: 62px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #edf2ee;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.chat-prompt-state.copied {
+  background: rgba(53, 95, 138, 0.14);
+  color: var(--legal);
+}
+
 .opponent-controls,
 .side-controls {
   display: grid;
@@ -510,6 +528,53 @@ button {
   height: 1px;
   opacity: 0;
   pointer-events: none;
+}
+
+.chat-prompt {
+  width: 100%;
+  min-height: 142px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  font: 0.78rem/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.chat-prompt:focus {
+  border-color: var(--dark-square);
+  outline: 3px solid rgba(101, 129, 108, 0.2);
+}
+
+.chat-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chat-actions a,
+.chat-actions button {
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: #26302d;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.chat-actions a:hover,
+.chat-actions a:focus-visible,
+.chat-actions button:hover,
+.chat-actions button:focus-visible {
+  outline: 2px solid rgba(53, 95, 138, 0.22);
 }
 
 #move-count {

@@ -48,6 +48,9 @@ const pgnStateEl = document.querySelector("#pgn-state");
 const moveBackButton = document.querySelector("#move-back");
 const movePlayButton = document.querySelector("#move-play");
 const moveNextButton = document.querySelector("#move-next");
+const chatPromptEl = document.querySelector("#chat-prompt");
+const copyChatPromptButton = document.querySelector("#copy-chat-prompt");
+const chatPromptStateEl = document.querySelector("#chat-prompt-state");
 
 let game;
 let selectedSquare = null;
@@ -70,6 +73,7 @@ let currentNodeId = "root";
 let nextNodeId = 1;
 let playbackTimer = null;
 let isPlayingLine = false;
+let chatPromptStatus = "Ready";
 
 function waitForChess() {
   if (window.Chess) {
@@ -215,6 +219,7 @@ function render() {
   updateOpponentControls();
   updatePgnStatus();
   updatePlaybackControls();
+  updateChatPrompt();
 }
 
 function getAttackAlpha(count, strongestAttack) {
@@ -428,6 +433,7 @@ function selectSquare(square) {
 }
 
 function movePiece(move) {
+  resetChatPromptStatus();
   const promotion = move.flags.includes("p") ? choosePromotion(move.color) : undefined;
   applyMoveToTree({
     from: move.from,
@@ -503,6 +509,7 @@ function navigateToNode(nodeId, options = {}) {
     stopPlayback();
   }
   setActiveLineToNode(nodeId);
+  resetChatPromptStatus();
   currentNodeId = nodeId;
   game = new window.Chess();
   game.load(node.fen);
@@ -780,6 +787,95 @@ function updateOpponentControls() {
   stockfishLevelInput.value = String(stockfishLevel);
 }
 
+function getCurrentGameContextForChat() {
+  const currentNode = getCurrentNode();
+  const captures = getCapturedPieces();
+
+  return {
+    fen: game.fen(),
+    sideToMove: game.turn() === "w" ? "White" : "Black",
+    activeLine: getActiveLinePgnForChat(),
+    currentMove: currentNode.parentId
+      ? `${currentNode.moveNumber}${currentNode.color === "b" ? "..." : "."} ${currentNode.san}`
+      : "Starting position",
+    branchCount: currentNode.children.length,
+    capturedWhite: captures.white.map((type) => pieces[`w${type}`]).join(" ") || "None",
+    capturedBlack: captures.black.map((type) => pieces[`b${type}`]).join(" ") || "None",
+    opponent:
+      gameMode === "stockfish"
+        ? `Stockfish level ${stockfishLevel}, human plays ${humanColor === "w" ? "White" : "Black"}`
+        : "Human vs human",
+  };
+}
+
+function getActiveLinePgnForChat() {
+  const activePath = getActivePath();
+
+  if (!activePath.length) return "No moves yet.";
+
+  const parts = [];
+  for (let i = 0; i < activePath.length; i += 1) {
+    const node = activePath[i];
+    if (node.color === "w") {
+      parts.push(`${node.moveNumber}. ${node.san}`);
+    } else if (parts.length) {
+      parts[parts.length - 1] += ` ${node.san}`;
+    } else {
+      parts.push(`${node.moveNumber}... ${node.san}`);
+    }
+  }
+
+  return parts.join(" ");
+}
+
+function buildChatGptCoachPrompt() {
+  const context = getCurrentGameContextForChat();
+
+  return [
+    "Act as a chess coach. Explain plans, threats, mistakes, tactical motifs, and improvement ideas in this game.",
+    "Be concise, practical, and teach me how to think about the position. If there is a tactic, explain the pattern before giving the full line.",
+    "",
+    `Current FEN: ${context.fen}`,
+    `Side to move: ${context.sideToMove}`,
+    `Current selected move/position: ${context.currentMove}`,
+    `Active line PGN: ${context.activeLine}`,
+    `Branches from current position: ${context.branchCount}`,
+    `Captured White pieces: ${context.capturedWhite}`,
+    `Captured Black pieces: ${context.capturedBlack}`,
+    `Opponent setting: ${context.opponent}`,
+    "",
+    "Please analyze the current position and tell me what I should learn from it.",
+  ].join("\n");
+}
+
+function updateChatPrompt() {
+  chatPromptEl.value = buildChatGptCoachPrompt();
+  chatPromptStateEl.textContent = chatPromptStatus;
+  chatPromptStateEl.classList.toggle("copied", chatPromptStatus === "Copied");
+}
+
+function resetChatPromptStatus() {
+  if (chatPromptStatus !== "Ready") {
+    chatPromptStatus = "Ready";
+  }
+}
+
+async function copyChatPrompt() {
+  const prompt = buildChatGptCoachPrompt();
+
+  try {
+    await navigator.clipboard.writeText(prompt);
+    chatPromptStatus = "Copied";
+  } catch (error) {
+    chatPromptEl.value = prompt;
+    chatPromptEl.focus();
+    chatPromptEl.select();
+    chatPromptStatus = "Select";
+  }
+
+  updateChatPrompt();
+}
+
 function importPgn(pgnText) {
   const trimmedPgn = pgnText.trim();
 
@@ -820,6 +916,7 @@ function importPgn(pgnText) {
   }
   clearSelection();
   pgnStatus = "Imported";
+  resetChatPromptStatus();
   render();
 }
 
@@ -1072,6 +1169,10 @@ moveNextButton.addEventListener("click", () => {
 
 movePlayButton.addEventListener("click", () => {
   togglePlayback();
+});
+
+copyChatPromptButton.addEventListener("click", () => {
+  copyChatPrompt();
 });
 
 waitForChess();

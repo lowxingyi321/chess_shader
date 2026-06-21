@@ -71,6 +71,24 @@
       <aside class="side-panel" aria-label="Game details">
         <section class="panel-section">
           <div class="panel-heading">
+            <h2>ChatGPT Coach</h2>
+            <span id="chat-prompt-state" class="chat-prompt-state">Ready</span>
+          </div>
+          <textarea
+            id="chat-prompt"
+            class="chat-prompt"
+            rows="7"
+            readonly
+            aria-label="ChatGPT chess coach prompt"
+          ></textarea>
+          <div class="chat-actions">
+            <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
+            <button id="copy-chat-prompt" type="button">Copy prompt</button>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-heading">
             <h2>Opponent</h2>
             <span id="engine-state" class="engine-state">Human</span>
           </div>
