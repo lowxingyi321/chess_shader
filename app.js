@@ -328,6 +328,7 @@ function render() {
 
   const legalTargets = new Map(legalMoves.map((move) => [move.to, move]));
   const attackCounts = getAttackCounts();
+  const currentNode = getCurrentNode();
 
   getSquares().forEach((square) => {
     const piece = game.get(square);
@@ -344,6 +345,12 @@ function render() {
     button.dataset.square = square;
     button.setAttribute("role", "gridcell");
     button.setAttribute("aria-label", square);
+    if (currentNode.parentId && square === currentNode.from) {
+      button.classList.add("last-move-from");
+    }
+    if (currentNode.parentId && square === currentNode.to) {
+      button.classList.add("last-move-to");
+    }
 
     if (visibleAttacks.total) {
       button.classList.add("attacked");
