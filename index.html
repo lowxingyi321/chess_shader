@@ -9,17 +9,35 @@
     <script src="app.js" defer></script>
   </head>
   <body>
-    <main class="app-shell">
+    <section id="start-screen" class="start-screen" aria-labelledby="start-title">
+      <div class="start-card">
+        <p class="eyebrow">Chess</p>
+        <h1 id="start-title">Choose how you want to play</h1>
+        <div class="mode-choice-grid">
+          <button id="choose-play" class="mode-choice" type="button">
+            <span>Play Game</span>
+            <small>Choose an opponent, lock the settings, then play.</small>
+          </button>
+          <button id="choose-analyse" class="mode-choice" type="button">
+            <span>Analyse Game</span>
+            <small>Import a PGN, review moves, and use the engine coach.</small>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <main id="app-workspace" class="app-shell" hidden>
       <section class="board-area" aria-label="Chess board">
         <div class="topbar">
           <div>
-            <p class="eyebrow">Chess</p>
+            <p id="mode-label" class="eyebrow">Chess</p>
             <h1 id="status">White to move</h1>
           </div>
           <div class="actions" aria-label="Game controls">
-            <button id="flip-board" type="button" title="Flip board" aria-label="Flip board">↕</button>
-            <button id="undo-move" type="button" title="Undo move" aria-label="Undo move">↶</button>
-            <button id="reset-game" type="button" title="New game" aria-label="New game">＋</button>
+            <button id="return-start" type="button" title="Choose mode" aria-label="Choose mode">Home</button>
+            <button id="flip-board" type="button" title="Flip board" aria-label="Flip board">Flip</button>
+            <button id="undo-move" type="button" title="Undo move" aria-label="Undo move">Undo</button>
+            <button id="reset-game" type="button" title="New game" aria-label="New game">New</button>
           </div>
         </div>
 
@@ -34,7 +52,7 @@
         </div>
 
         <div class="board-lower-panels">
-          <section class="panel-section pgn-panel">
+          <section id="pgn-panel" class="panel-section pgn-panel analyse-only">
             <div class="panel-heading">
               <h2>PGN</h2>
               <span id="pgn-state" class="pgn-state">Ready</span>
@@ -59,9 +77,9 @@
               <span id="move-count">0</span>
             </div>
             <div class="playback-controls" aria-label="Move playback controls">
-              <button id="move-back" type="button" title="Previous move" aria-label="Previous move">‹</button>
-              <button id="move-play" type="button" title="Play moves" aria-label="Play moves">▶</button>
-              <button id="move-next" type="button" title="Next move" aria-label="Next move">›</button>
+              <button id="move-back" type="button" title="Previous move" aria-label="Previous move">Prev</button>
+              <button id="move-play" type="button" title="Play moves" aria-label="Play moves">Play</button>
+              <button id="move-next" type="button" title="Next move" aria-label="Next move">Next</button>
             </div>
             <ol id="move-list" class="move-list" aria-label="Move history"></ol>
           </section>
@@ -87,24 +105,32 @@
           </div>
         </section>
 
-        <section class="panel-section">
+        <section id="play-setup-panel" class="panel-section play-only">
           <div class="panel-heading">
-            <h2>Opponent</h2>
+            <h2>Play Setup</h2>
             <span id="engine-state" class="engine-state">Human</span>
           </div>
-          <div class="opponent-controls" role="group" aria-label="Opponent mode">
-            <button class="opponent-option active" type="button" data-game-mode="human">Human</button>
-            <button class="opponent-option" type="button" data-game-mode="stockfish">Stockfish</button>
-          </div>
-          <div id="engine-options" class="engine-options" hidden>
-            <div class="side-controls" role="group" aria-label="Human side">
-              <button class="side-option active" type="button" data-human-color="w">White</button>
-              <button class="side-option" type="button" data-human-color="b">Black</button>
+          <div id="play-setup-controls">
+            <div class="opponent-controls" role="group" aria-label="Opponent mode">
+              <button class="opponent-option active" type="button" data-game-mode="human">Human</button>
+              <button class="opponent-option" type="button" data-game-mode="stockfish">Stockfish</button>
             </div>
-            <label class="level-control" for="stockfish-level">
-              <span>Level <strong id="stockfish-level-value">8</strong></span>
-              <input id="stockfish-level" type="range" min="1" max="20" value="8" />
-            </label>
+            <div id="engine-options" class="engine-options" hidden>
+              <div class="side-controls" role="group" aria-label="Human side">
+                <button class="side-option active" type="button" data-human-color="w">White</button>
+                <button class="side-option" type="button" data-human-color="b">Black</button>
+              </div>
+              <label class="level-control" for="stockfish-level">
+                <span>Level <strong id="stockfish-level-value">8</strong></span>
+                <input id="stockfish-level" type="range" min="1" max="20" value="8" />
+              </label>
+            </div>
+            <button id="start-play-game" class="primary-action" type="button">Start game</button>
+            <button id="cancel-play-setup" class="secondary-action" type="button">Back</button>
+          </div>
+          <div id="locked-game-summary" class="locked-game-summary" hidden>
+            <span>Locked for this game</span>
+            <strong id="locked-game-text">Human vs human</strong>
           </div>
         </section>
 
@@ -138,7 +164,6 @@
             </div>
           </div>
         </section>
-
       </aside>
     </main>
   </body>

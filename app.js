@@ -27,6 +27,12 @@ const boardRanks = ["1", "2", "3", "4", "5", "6", "7", "8"];
 const liveTutorMoveTime = 500;
 const liveTutorDebounceMs = 180;
 
+const startScreenEl = document.querySelector("#start-screen");
+const appWorkspaceEl = document.querySelector("#app-workspace");
+const choosePlayButton = document.querySelector("#choose-play");
+const chooseAnalyseButton = document.querySelector("#choose-analyse");
+const returnStartButton = document.querySelector("#return-start");
+const modeLabelEl = document.querySelector("#mode-label");
 const boardEl = document.querySelector("#board");
 const statusEl = document.querySelector("#status");
 const moveListEl = document.querySelector("#move-list");
@@ -43,6 +49,11 @@ const engineOptionsEl = document.querySelector("#engine-options");
 const engineStateEl = document.querySelector("#engine-state");
 const stockfishLevelInput = document.querySelector("#stockfish-level");
 const stockfishLevelValueEl = document.querySelector("#stockfish-level-value");
+const playSetupControlsEl = document.querySelector("#play-setup-controls");
+const startPlayGameButton = document.querySelector("#start-play-game");
+const cancelPlaySetupButton = document.querySelector("#cancel-play-setup");
+const lockedGameSummaryEl = document.querySelector("#locked-game-summary");
+const lockedGameTextEl = document.querySelector("#locked-game-text");
 const pgnInputEl = document.querySelector("#pgn-input");
 const pgnFileInput = document.querySelector("#pgn-file");
 const importPgnButton = document.querySelector("#import-pgn");
@@ -59,6 +70,11 @@ let selectedSquare = null;
 let legalMoves = [];
 let flipped = false;
 let shaderMode = "both";
+let appMode = "start";
+let playGameStarted = false;
+let setupGameMode = "human";
+let setupHumanColor = "w";
+let setupStockfishLevel = 8;
 let gameMode = "human";
 let humanColor = "w";
 let stockfishLevel = 8;
@@ -89,6 +105,7 @@ function waitForChess() {
   if (window.Chess) {
     game = new window.Chess();
     moveTree = createMoveTree();
+    updateModeVisibility();
     render();
     return;
   }
@@ -99,6 +116,7 @@ function waitForChess() {
     if (window.Chess) {
       game = new window.Chess();
       moveTree = createMoveTree();
+      updateModeVisibility();
       render();
     } else {
       boardEl.className = "error";
@@ -131,6 +149,122 @@ function createMoveTree(rootFen) {
       },
     },
   };
+}
+
+function resetBoardState(rootFen) {
+  stopEngineSearch();
+  stopPlayback();
+  moveTree = createMoveTree(rootFen);
+  nextNodeId = 1;
+  currentNodeId = moveTree.rootId;
+  game = new window.Chess();
+  game.load(getCurrentNode().fen);
+  clearSelection();
+  resetChatPromptStatus();
+}
+
+function showStartScreen() {
+  appMode = "start";
+  playGameStarted = false;
+  gameMode = "human";
+  engineStatus = "Human";
+  stopEngineSearch();
+  stopPlayback();
+  clearSelection();
+  updateModeVisibility();
+}
+
+function showPlaySetup() {
+  appMode = "play";
+  playGameStarted = false;
+  gameMode = "human";
+  engineStatus = "Human";
+  resetBoardState();
+  updateModeVisibility();
+  render();
+}
+
+function startPlayGame() {
+  appMode = "play";
+  playGameStarted = true;
+  gameMode = setupGameMode;
+  humanColor = setupHumanColor;
+  stockfishLevel = setupStockfishLevel;
+  resetBoardState();
+  if (engineReady) {
+    sendEngineCommand("ucinewgame");
+    sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
+  }
+  engineStatus = gameMode === "human" ? "Human" : engineReady ? "Ready" : "Loading";
+  updateModeVisibility();
+  render();
+  initEngine();
+  requestEngineMoveIfNeeded();
+}
+
+function startAnalyseGame() {
+  appMode = "analyse";
+  playGameStarted = false;
+  gameMode = "human";
+  engineStatus = "Human";
+  resetBoardState();
+  pgnStatus = "Ready";
+  updateModeVisibility();
+  render();
+}
+
+function updateModeVisibility() {
+  startScreenEl.hidden = appMode !== "start";
+  appWorkspaceEl.hidden = appMode === "start";
+  appWorkspaceEl.dataset.mode = appMode;
+  appWorkspaceEl.dataset.started = String(playGameStarted);
+
+  document.querySelectorAll(".play-only").forEach((el) => {
+    el.hidden = appMode !== "play";
+  });
+
+  document.querySelectorAll(".analyse-only").forEach((el) => {
+    el.hidden = appMode !== "analyse";
+  });
+
+  modeLabelEl.textContent =
+    appMode === "play" ? "Play Game" : appMode === "analyse" ? "Analyse Game" : "Chess";
+  resetButton.textContent = appMode === "play" ? "New" : "Reset";
+  resetButton.title = appMode === "play" ? "New game" : "Reset analysis board";
+  resetButton.setAttribute("aria-label", resetButton.title);
+
+  updateSetupControls();
+  updateLockedGameSummary();
+}
+
+function updateSetupControls() {
+  opponentButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.gameMode === setupGameMode);
+    button.disabled = playGameStarted;
+  });
+
+  sideButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.humanColor === setupHumanColor);
+    button.disabled = playGameStarted;
+  });
+
+  engineOptionsEl.hidden = setupGameMode !== "stockfish";
+  stockfishLevelValueEl.textContent = setupStockfishLevel;
+  stockfishLevelInput.value = String(setupStockfishLevel);
+  stockfishLevelInput.disabled = playGameStarted;
+  startPlayGameButton.disabled = playGameStarted;
+}
+
+function updateLockedGameSummary() {
+  playSetupControlsEl.hidden = appMode === "play" && playGameStarted;
+  lockedGameSummaryEl.hidden = appMode !== "play" || !playGameStarted;
+  lockedGameTextEl.textContent = getLockedGameLabel();
+}
+
+function getLockedGameLabel() {
+  if (gameMode !== "stockfish") return "Human vs human";
+  const side = humanColor === "w" ? "White" : "Black";
+  return `Stockfish level ${stockfishLevel}, human plays ${side}`;
 }
 
 function getFiles() {
@@ -586,7 +720,7 @@ function updatePlaybackControls() {
   moveBackButton.disabled = !getPreviousNodeId();
   moveNextButton.disabled = !getNextNodeId();
   movePlayButton.disabled = !getNextNodeId() && !isPlayingLine;
-  movePlayButton.textContent = isPlayingLine ? "Ⅱ" : "▶";
+  movePlayButton.textContent = isPlayingLine ? "Pause" : "Play";
   movePlayButton.setAttribute("aria-label", isPlayingLine ? "Pause moves" : "Play moves");
   movePlayButton.title = isPlayingLine ? "Pause moves" : "Play moves";
 }
@@ -661,6 +795,8 @@ function getMoveNumberFromFen(fen) {
 }
 
 function canHumanMove() {
+  if (appMode === "analyse") return true;
+  if (appMode !== "play" || !playGameStarted) return false;
   return gameMode === "human" || (!engineThinking && game.turn() === humanColor);
 }
 
@@ -669,7 +805,7 @@ function isGameOver() {
 }
 
 function initEngine() {
-  if (engine || gameMode !== "stockfish") return;
+  if (engine || appMode !== "play" || !playGameStarted || gameMode !== "stockfish") return;
 
   engineReady = false;
   engineThinking = false;
@@ -735,6 +871,7 @@ function handleEngineMessage(message) {
 }
 
 function requestEngineMoveIfNeeded() {
+  if (appMode !== "play" || !playGameStarted) return;
   if (gameMode !== "stockfish" || !engineReady || engineThinking || isGameOver()) return;
   if (game.turn() === humanColor) return;
 
@@ -784,18 +921,10 @@ function stopEngineSearch() {
 }
 
 function updateOpponentControls() {
-  opponentButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.gameMode === gameMode);
-  });
-
-  sideButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.humanColor === humanColor);
-  });
-
-  engineOptionsEl.hidden = gameMode !== "stockfish";
-  engineStateEl.textContent = gameMode === "human" ? "Human" : engineStatus;
-  stockfishLevelValueEl.textContent = stockfishLevel;
-  stockfishLevelInput.value = String(stockfishLevel);
+  updateSetupControls();
+  updateLockedGameSummary();
+  engineStateEl.textContent =
+    appMode === "play" && playGameStarted && gameMode === "stockfish" ? engineStatus : "Human";
 }
 
 function initLiveTutorEngine() {
@@ -937,7 +1066,7 @@ function sendLiveTutorCommand(command) {
 }
 
 function scheduleLiveTutorAnalysis() {
-  if (!game) return;
+  if (!game || appMode === "start") return;
 
   window.clearTimeout(liveTutorTimer);
   updateLiveTutorStatus();
@@ -1054,7 +1183,9 @@ function getCurrentGameContextForChat() {
     parentAnalysis,
     moveClassification: classifyCurrentMove(currentNode, parentAnalysis, currentAnalysis),
     opponent:
-      gameMode === "stockfish"
+      appMode === "analyse"
+        ? "Analysis review"
+        : gameMode === "stockfish"
         ? `Stockfish level ${stockfishLevel}, human plays ${humanColor === "w" ? "White" : "Black"}`
         : "Human vs human",
   };
@@ -1280,6 +1411,16 @@ function updatePgnStatus() {
 }
 
 function updateStatus() {
+  if (appMode === "play" && !playGameStarted) {
+    statusEl.textContent = "Set up your game";
+    return;
+  }
+
+  if (appMode === "analyse" && !getActivePath().length) {
+    statusEl.textContent = "Import a PGN or explore from the start";
+    return;
+  }
+
   const turn = game.turn() === "w" ? "White" : "Black";
 
   if (game.in_checkmate()) {
@@ -1429,12 +1570,14 @@ undoButton.addEventListener("click", () => {
 });
 
 resetButton.addEventListener("click", () => {
-  stopEngineSearch();
-  stopPlayback();
-  if (engineReady) {
-    sendEngineCommand("ucinewgame");
+  if (appMode === "play") {
+    showPlaySetup();
+    return;
   }
-  navigateToNode(moveTree.rootId, { stopEngine: false });
+
+  resetBoardState();
+  pgnStatus = "Ready";
+  render();
 });
 
 shaderButtons.forEach((button) => {
@@ -1446,32 +1589,44 @@ shaderButtons.forEach((button) => {
 
 opponentButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    stopEngineSearch();
-    stopPlayback();
-    gameMode = button.dataset.gameMode;
-    engineStatus = gameMode === "human" ? "Human" : engineReady ? "Ready" : "Loading";
-    clearSelection();
-    render();
-    initEngine();
-    requestEngineMoveIfNeeded();
+    if (playGameStarted) return;
+    setupGameMode = button.dataset.gameMode;
+    updateModeVisibility();
   });
 });
 
 sideButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    stopEngineSearch();
-    stopPlayback();
-    humanColor = button.dataset.humanColor;
-    clearSelection();
-    render();
-    requestEngineMoveIfNeeded();
+    if (playGameStarted) return;
+    setupHumanColor = button.dataset.humanColor;
+    updateModeVisibility();
   });
 });
 
 stockfishLevelInput.addEventListener("input", () => {
-  stockfishLevel = Number(stockfishLevelInput.value);
-  stockfishLevelValueEl.textContent = stockfishLevel;
-  sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
+  if (playGameStarted) return;
+  setupStockfishLevel = Number(stockfishLevelInput.value);
+  stockfishLevelValueEl.textContent = setupStockfishLevel;
+});
+
+choosePlayButton.addEventListener("click", () => {
+  showPlaySetup();
+});
+
+chooseAnalyseButton.addEventListener("click", () => {
+  startAnalyseGame();
+});
+
+returnStartButton.addEventListener("click", () => {
+  showStartScreen();
+});
+
+startPlayGameButton.addEventListener("click", () => {
+  startPlayGame();
+});
+
+cancelPlaySetupButton.addEventListener("click", () => {
+  showStartScreen();
 });
 
 importPgnButton.addEventListener("click", () => {
