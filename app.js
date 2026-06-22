@@ -328,7 +328,6 @@ function render() {
 
   const legalTargets = new Map(legalMoves.map((move) => [move.to, move]));
   const attackCounts = getAttackCounts();
-  const strongestAttack = getStrongestVisibleAttack(attackCounts);
 
   getSquares().forEach((square) => {
     const piece = game.get(square);
@@ -349,12 +348,16 @@ function render() {
     if (visibleAttacks.total) {
       button.classList.add("attacked");
       if (visibleAttacks.w) {
+        const whiteStyle = getAttackPressureStyle(visibleAttacks.w);
         button.classList.add("attack-white");
-        button.style.setProperty("--white-pressure", getAttackAlpha(visibleAttacks.w, strongestAttack));
+        button.style.setProperty("--white-fill", whiteStyle.fill);
+        button.style.setProperty("--white-opacity", whiteStyle.opacity);
       }
       if (visibleAttacks.b) {
+        const blackStyle = getAttackPressureStyle(visibleAttacks.b);
         button.classList.add("attack-black");
-        button.style.setProperty("--black-pressure", getAttackAlpha(visibleAttacks.b, strongestAttack));
+        button.style.setProperty("--black-fill", blackStyle.fill);
+        button.style.setProperty("--black-opacity", blackStyle.opacity);
       }
       if (showPressureCounts) {
         button.appendChild(createPressureCounts(visibleAttacks));
@@ -385,9 +388,27 @@ function render() {
   scheduleLiveTutorAnalysis();
 }
 
-function getAttackAlpha(count, strongestAttack) {
-  const intensity = count / strongestAttack;
-  return String(Math.min(0.94, 0.34 + intensity * 0.48));
+function getAttackPressureStyle(count) {
+  const cappedCount = Math.min(5, Math.max(1, count));
+  const fillByCount = {
+    1: "24%",
+    2: "38%",
+    3: "52%",
+    4: "68%",
+    5: "84%",
+  };
+  const opacityByCount = {
+    1: "0.34",
+    2: "0.44",
+    3: "0.54",
+    4: "0.64",
+    5: "0.76",
+  };
+
+  return {
+    fill: fillByCount[cappedCount],
+    opacity: opacityByCount[cappedCount],
+  };
 }
 
 function getPlayerColor() {
@@ -405,17 +426,6 @@ function getVisibleAttacks(attacks) {
   };
   visible.total = visible.w + visible.b;
   return visible;
-}
-
-function getStrongestVisibleAttack(attackCounts) {
-  let strongest = 1;
-
-  attackCounts.forEach((attacks) => {
-    const visible = getVisibleAttacks(attacks);
-    strongest = Math.max(strongest, visible.w, visible.b);
-  });
-
-  return strongest;
 }
 
 function createPressureCounts(attacks) {

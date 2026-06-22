@@ -256,8 +256,10 @@ button {
   border: 0;
   min-width: 0;
   aspect-ratio: 1;
-  --white-pressure: 0;
-  --black-pressure: 0;
+  --white-fill: 0%;
+  --black-fill: 0%;
+  --white-opacity: 0;
+  --black-opacity: 0;
   color: var(--ink);
   cursor: pointer;
   font-family: "Segoe UI Symbol", "Apple Color Emoji", serif;
@@ -278,22 +280,22 @@ button {
 
 .square.attack-white::before {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, calc(var(--white-pressure) * 0.62)) 0 37%, transparent 37%),
-    linear-gradient(135deg, rgba(31, 112, 194, var(--white-pressure)) 0 54%, transparent 54%);
+    linear-gradient(135deg, rgba(255, 255, 255, calc(var(--white-opacity) * 0.34)) 0 calc(var(--white-fill) * 0.58), transparent calc(var(--white-fill) * 0.58)),
+    linear-gradient(135deg, rgba(31, 112, 194, var(--white-opacity)) 0 var(--white-fill), transparent var(--white-fill));
 }
 
 .square.attack-black::before {
   background:
-    linear-gradient(315deg, rgba(44, 18, 20, calc(var(--black-pressure) * 0.58)) 0 37%, transparent 37%),
-    linear-gradient(315deg, rgba(196, 32, 28, var(--black-pressure)) 0 54%, transparent 54%);
+    linear-gradient(315deg, rgba(44, 18, 20, calc(var(--black-opacity) * 0.28)) 0 calc(var(--black-fill) * 0.58), transparent calc(var(--black-fill) * 0.58)),
+    linear-gradient(315deg, rgba(196, 32, 28, var(--black-opacity)) 0 var(--black-fill), transparent var(--black-fill));
 }
 
 .square.attack-white.attack-black::before {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, calc(var(--white-pressure) * 0.62)) 0 28%, transparent 28%),
-    linear-gradient(135deg, rgba(31, 112, 194, var(--white-pressure)) 0 48%, transparent 48%),
-    linear-gradient(315deg, rgba(44, 18, 20, calc(var(--black-pressure) * 0.58)) 0 28%, transparent 28%),
-    linear-gradient(315deg, rgba(196, 32, 28, var(--black-pressure)) 0 48%, transparent 48%);
+    linear-gradient(135deg, rgba(255, 255, 255, calc(var(--white-opacity) * 0.34)) 0 calc(var(--white-fill) * 0.48), transparent calc(var(--white-fill) * 0.48)),
+    linear-gradient(135deg, rgba(31, 112, 194, var(--white-opacity)) 0 var(--white-fill), transparent var(--white-fill)),
+    linear-gradient(315deg, rgba(44, 18, 20, calc(var(--black-opacity) * 0.28)) 0 calc(var(--black-fill) * 0.48), transparent calc(var(--black-fill) * 0.48)),
+    linear-gradient(315deg, rgba(196, 32, 28, var(--black-opacity)) 0 var(--black-fill), transparent var(--black-fill));
 }
 
 .pressure-counts {
