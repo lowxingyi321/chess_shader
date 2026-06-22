@@ -24,6 +24,8 @@ const pieceValues = {
 const promotionPieces = ["q", "r", "b", "n"];
 const boardFiles = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const boardRanks = ["1", "2", "3", "4", "5", "6", "7", "8"];
+const liveTutorMoveTime = 500;
+const liveTutorDebounceMs = 180;
 
 const boardEl = document.querySelector("#board");
 const statusEl = document.querySelector("#status");
@@ -74,6 +76,14 @@ let nextNodeId = 1;
 let playbackTimer = null;
 let isPlayingLine = false;
 let chatPromptStatus = "Ready";
+let liveTutorEngine = null;
+let liveTutorReady = false;
+let liveTutorStatus = "No engine";
+let liveTutorTimer = null;
+let liveTutorActiveRequest = null;
+let liveTutorQueue = [];
+let liveTutorRequestId = 0;
+let liveTutorResults = new Map();
 
 function waitForChess() {
   if (window.Chess) {
@@ -220,6 +230,7 @@ function render() {
   updatePgnStatus();
   updatePlaybackControls();
   updateChatPrompt();
+  scheduleLiveTutorAnalysis();
 }
 
 function getAttackAlpha(count, strongestAttack) {
@@ -787,21 +798,261 @@ function updateOpponentControls() {
   stockfishLevelInput.value = String(stockfishLevel);
 }
 
+function initLiveTutorEngine() {
+  if (liveTutorEngine) return;
+
+  liveTutorStatus = "Analyzing";
+  updateChatPrompt();
+
+  try {
+    liveTutorEngine = new Worker("vendor/stockfish/stockfish-18-lite-single.js");
+  } catch (error) {
+    liveTutorEngine = null;
+    liveTutorReady = false;
+    liveTutorStatus = "No engine";
+    updateChatPrompt();
+    return;
+  }
+
+  liveTutorEngine.onmessage = (event) => handleLiveTutorMessage(String(event.data));
+  liveTutorEngine.onerror = () => {
+    liveTutorReady = false;
+    liveTutorStatus = "No engine";
+    liveTutorActiveRequest = null;
+    liveTutorQueue = [];
+    updateChatPrompt();
+  };
+
+  sendLiveTutorCommand("uci");
+  sendLiveTutorCommand("isready");
+}
+
+function handleLiveTutorMessage(message) {
+  if (message === "readyok") {
+    liveTutorReady = true;
+    liveTutorStatus = "Ready";
+    sendLiveTutorCommand("ucinewgame");
+    scheduleLiveTutorAnalysis();
+    updateChatPrompt();
+    return;
+  }
+
+  if (!liveTutorActiveRequest) return;
+
+  if (message.startsWith("info ")) {
+    const parsedInfo = parseLiveTutorInfo(message, liveTutorActiveRequest.fen);
+    if (parsedInfo) {
+      liveTutorActiveRequest.info = {
+        ...liveTutorActiveRequest.info,
+        ...parsedInfo,
+      };
+    }
+    return;
+  }
+
+  if (!message.startsWith("bestmove ")) return;
+
+  const bestMove = message.split(/\s+/)[1];
+  const request = liveTutorActiveRequest;
+  liveTutorActiveRequest = null;
+
+  if (request.id === liveTutorRequestId || liveTutorQueue.some((item) => item.id >= request.id)) {
+    liveTutorResults.set(request.fen, {
+      fen: request.fen,
+      bestMove: bestMove && bestMove !== "(none)" ? bestMove : request.info.bestMove || null,
+      depth: request.info.depth || null,
+      pv: request.info.pv || [],
+      score: request.info.score || null,
+    });
+  }
+
+  processLiveTutorQueue();
+  updateLiveTutorStatus();
+  updateChatPrompt();
+}
+
+function parseLiveTutorInfo(message, fen) {
+  const depthMatch = message.match(/\bdepth\s+(\d+)/);
+  const pvMatch = message.match(/\bpv\s+(.+)$/);
+  const scoreMatch = message.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
+  const result = {};
+
+  if (depthMatch) {
+    result.depth = Number(depthMatch[1]);
+  }
+
+  if (pvMatch) {
+    result.pv = pvMatch[1].trim().split(/\s+/).slice(0, 6);
+    result.bestMove = result.pv[0] || null;
+  }
+
+  if (scoreMatch) {
+    result.score = normalizeEngineScore(scoreMatch[1], Number(scoreMatch[2]), fen);
+  }
+
+  return Object.keys(result).length ? result : null;
+}
+
+function normalizeEngineScore(type, value, fen) {
+  const sideToMove = getFenTurn(fen);
+  const sideMultiplier = sideToMove === "w" ? 1 : -1;
+
+  if (type === "mate") {
+    return {
+      type: "mate",
+      value: value * sideMultiplier,
+      label: formatMateScore(value * sideMultiplier),
+      whiteCentipawns: value > 0 ? 100000 * sideMultiplier : -100000 * sideMultiplier,
+    };
+  }
+
+  const whiteCentipawns = value * sideMultiplier;
+  return {
+    type: "cp",
+    value: whiteCentipawns,
+    label: formatCentipawnScore(whiteCentipawns),
+    whiteCentipawns,
+  };
+}
+
+function formatCentipawnScore(centipawns) {
+  const pawns = Math.abs(centipawns) / 100;
+  const sign = centipawns >= 0 ? "+" : "-";
+  return `${sign}${pawns.toFixed(2)}`;
+}
+
+function formatMateScore(mateValue) {
+  if (mateValue === 0) return "Mate";
+  return mateValue > 0 ? `White mates in ${mateValue}` : `Black mates in ${Math.abs(mateValue)}`;
+}
+
+function getFenTurn(fen) {
+  return fen.split(" ")[1] || "w";
+}
+
+function sendLiveTutorCommand(command) {
+  if (liveTutorEngine) {
+    liveTutorEngine.postMessage(command);
+  }
+}
+
+function scheduleLiveTutorAnalysis() {
+  if (!game) return;
+
+  window.clearTimeout(liveTutorTimer);
+  updateLiveTutorStatus();
+  updateChatPrompt();
+
+  liveTutorTimer = window.setTimeout(() => {
+    queueLiveTutorAnalysis();
+  }, liveTutorDebounceMs);
+}
+
+function queueLiveTutorAnalysis() {
+  if (!game) return;
+
+  initLiveTutorEngine();
+  const fens = getLiveTutorFens();
+  const missingFens = fens.filter((fen) => fen && !liveTutorResults.has(fen));
+
+  if (!liveTutorReady) {
+    liveTutorStatus = liveTutorEngine ? "Analyzing" : "No engine";
+    updateChatPrompt();
+    return;
+  }
+
+  if (!missingFens.length) {
+    updateLiveTutorStatus();
+    updateChatPrompt();
+    return;
+  }
+
+  liveTutorStatus = "Analyzing";
+  missingFens.forEach((fen) => {
+    if (liveTutorActiveRequest?.fen === fen || liveTutorQueue.some((request) => request.fen === fen)) return;
+    liveTutorQueue.push({
+      id: ++liveTutorRequestId,
+      fen,
+      info: {},
+    });
+  });
+
+  processLiveTutorQueue();
+  updateChatPrompt();
+}
+
+function getLiveTutorFens() {
+  const currentNode = getCurrentNode();
+  const fens = [game.fen()];
+
+  if (currentNode?.parentId) {
+    const parentNode = moveTree.nodes[currentNode.parentId];
+    if (parentNode?.fen) {
+      fens.push(parentNode.fen);
+    }
+  }
+
+  return fens;
+}
+
+function processLiveTutorQueue() {
+  if (!liveTutorReady || liveTutorActiveRequest || !liveTutorQueue.length) return;
+
+  liveTutorActiveRequest = liveTutorQueue.shift();
+  liveTutorStatus = "Analyzing";
+  sendLiveTutorCommand(`position fen ${liveTutorActiveRequest.fen}`);
+  sendLiveTutorCommand(`go movetime ${liveTutorMoveTime}`);
+}
+
+function updateLiveTutorStatus() {
+  if (!liveTutorEngine) {
+    liveTutorStatus = "No engine";
+    return;
+  }
+
+  if (!liveTutorReady) {
+    liveTutorStatus = "Analyzing";
+    return;
+  }
+
+  if (liveTutorActiveRequest || liveTutorQueue.length) {
+    liveTutorStatus = "Analyzing";
+    return;
+  }
+
+  if (game && getLiveTutorFens().some((fen) => fen && !liveTutorResults.has(fen))) {
+    liveTutorStatus = "Analyzing";
+    return;
+  }
+
+  liveTutorStatus = "Ready";
+}
+
 function getCurrentGameContextForChat() {
   const currentNode = getCurrentNode();
   const captures = getCapturedPieces();
+  const parentNode = currentNode.parentId ? moveTree.nodes[currentNode.parentId] : null;
+  const currentAnalysis = liveTutorResults.get(game.fen()) || null;
+  const parentAnalysis = parentNode ? liveTutorResults.get(parentNode.fen) || null : null;
+  const legalMoveList = game.moves();
 
   return {
     fen: game.fen(),
     playerPerspective: getPlayerColor() === "w" ? "White" : "Black",
+    playerColor: getPlayerColor(),
     sideToMove: game.turn() === "w" ? "White" : "Black",
     activeLine: getActiveLinePgnForChat(),
     currentMove: currentNode.parentId
       ? `${currentNode.moveNumber}${currentNode.color === "b" ? "..." : "."} ${currentNode.san}`
       : "Starting position",
+    lastMoveColor: currentNode.color,
     branchCount: currentNode.children.length,
     capturedWhite: captures.white.map((type) => pieces[`w${type}`]).join(" ") || "None",
     capturedBlack: captures.black.map((type) => pieces[`b${type}`]).join(" ") || "None",
+    legalMoves: legalMoveList.length ? legalMoveList.join(", ") : "No legal moves",
+    currentAnalysis,
+    parentAnalysis,
+    moveClassification: classifyCurrentMove(currentNode, parentAnalysis, currentAnalysis),
     opponent:
       gameMode === "stockfish"
         ? `Stockfish level ${stockfishLevel}, human plays ${humanColor === "w" ? "White" : "Black"}`
@@ -829,31 +1080,127 @@ function getActiveLinePgnForChat() {
   return parts.join(" ");
 }
 
-function buildChatGptCoachPrompt() {
-  const context = getCurrentGameContextForChat();
+function classifyCurrentMove(currentNode, parentAnalysis, currentAnalysis) {
+  if (!currentNode.parentId || !parentAnalysis?.score || !currentAnalysis?.score) {
+    return null;
+  }
+
+  const moverColor = currentNode.color;
+  const before = getScoreForColor(parentAnalysis.score, moverColor);
+  const after = getScoreForColor(currentAnalysis.score, moverColor);
+  const drop = Math.max(0, Math.round(before - after));
+  let label = "Excellent / Best";
+
+  if (drop > 150) {
+    label = "Blunder";
+  } else if (drop > 50) {
+    label = "Mistake";
+  } else if (drop > 20) {
+    label = "Inaccuracy";
+  }
+
+  return {
+    label,
+    drop,
+    before,
+    after,
+    mover: moverColor === "w" ? "White" : "Black",
+  };
+}
+
+function getScoreForColor(score, color) {
+  if (!score) return null;
+  return color === "w" ? score.whiteCentipawns : -score.whiteCentipawns;
+}
+
+function formatPerspectiveScore(score, color) {
+  if (!score) return "Engine analysis pending";
+
+  if (score.type === "mate") {
+    const perspectiveValue = color === "w" ? score.value : -score.value;
+    if (perspectiveValue === 0) return "Mate";
+    return perspectiveValue > 0
+      ? `Winning by mate in ${perspectiveValue}`
+      : `Getting mated in ${Math.abs(perspectiveValue)}`;
+  }
+
+  return formatCentipawnScore(getScoreForColor(score, color));
+}
+
+function formatWhiteScore(score) {
+  return score ? score.label : "Engine analysis pending";
+}
+
+function formatPv(pv) {
+  return pv?.length ? pv.join(" ") : "Engine line pending";
+}
+
+function formatBestMove(analysis) {
+  return analysis?.bestMove || "Engine best move pending";
+}
+
+function formatMoveClassification(classification) {
+  if (!classification) return "No previous move to classify yet.";
 
   return [
-    "Act as a concise chess coach for the side listed as 'Coach me as'. Reply in exactly one short paragraph, no bullet points, no headings, and no long variation tree.",
-    "Focus only on the most important idea in the current position: the plan, biggest threat, likely mistake, or tactical motif. If there is a tactic, name the pattern and give only the key line.",
+    `${classification.label}`,
+    `mover: ${classification.mover}`,
+    `eval drop: ${classification.drop} centipawns`,
+    `before: ${formatCentipawnScore(classification.before)}`,
+    `after: ${formatCentipawnScore(classification.after)}`,
+  ].join("; ");
+}
+
+function buildChatGptCoachPrompt() {
+  const context = getCurrentGameContextForChat();
+  const analysisReady = Boolean(context.currentAnalysis);
+  const currentEval = formatPerspectiveScore(context.currentAnalysis?.score, context.playerColor);
+  const whiteEval = formatWhiteScore(context.currentAnalysis?.score);
+  const bestMove = formatBestMove(context.currentAnalysis);
+  const pv = formatPv(context.currentAnalysis?.pv);
+
+  return [
+    "You are an encouraging, insightful human chess coach around 2200 Elo.",
+    "CRITICAL: Do not calculate moves yourself. Trust the engine data below. If engine analysis is pending, say so and coach from only the provided FEN and legal moves.",
+    "Explain concepts first: king safety, piece activity, pawn structure, open files, weak squares, tempo, threats, or tactical motifs.",
+    "Do not spoil the exact engine best move unless I ask for it directly. You may hint at the idea behind it.",
+    "Reply in exactly one short paragraph, no bullet points, no headings, and no long variation tree.",
     "",
-    `Current FEN: ${context.fen}`,
+    "[CURRENT POSITION]",
+    `FEN: ${context.fen}`,
     `Coach me as: ${context.playerPerspective}`,
     `Side to move: ${context.sideToMove}`,
-    `Current selected move/position: ${context.currentMove}`,
+    `Legal moves: ${context.legalMoves}`,
     `Active line PGN: ${context.activeLine}`,
+    `Current selected move/position: ${context.currentMove}`,
     `Branches from current position: ${context.branchCount}`,
     `Captured White pieces: ${context.capturedWhite}`,
     `Captured Black pieces: ${context.capturedBlack}`,
     `Opponent setting: ${context.opponent}`,
     "",
-    "Give me one practical takeaway from this position.",
+    "[ENGINE ANALYSIS]",
+    `Analysis status: ${analysisReady ? "Ready" : "Engine analysis pending"}`,
+    `Current eval for coach perspective: ${currentEval}`,
+    `Current eval from White perspective: ${whiteEval}`,
+    `Engine best move: ${bestMove}`,
+    `Short engine line: ${pv}`,
+    `Search depth: ${context.currentAnalysis?.depth || "Pending"}`,
+    "",
+    "[LAST MOVE REVIEW]",
+    `Last move: ${context.currentMove}`,
+    `Classification: ${formatMoveClassification(context.moveClassification)}`,
+    "",
+    "Give me one practical takeaway from this position. If the last move was a blunder or mistake, explain the human reason it failed and the tactical or strategic punishment without dumping a long line.",
   ].join("\n");
 }
 
 function updateChatPrompt() {
   chatPromptEl.value = buildChatGptCoachPrompt();
-  chatPromptStateEl.textContent = chatPromptStatus;
-  chatPromptStateEl.classList.toggle("copied", chatPromptStatus === "Copied");
+  const displayStatus = chatPromptStatus === "Copied" || chatPromptStatus === "Select" ? chatPromptStatus : liveTutorStatus;
+  chatPromptStateEl.textContent = displayStatus;
+  chatPromptStateEl.classList.toggle("copied", displayStatus === "Copied");
+  chatPromptStateEl.classList.toggle("analyzing", displayStatus === "Analyzing");
+  chatPromptStateEl.classList.toggle("error-state", displayStatus === "No engine");
 }
 
 function resetChatPromptStatus() {
