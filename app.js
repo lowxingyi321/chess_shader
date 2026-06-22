@@ -54,6 +54,7 @@ const startPlayGameButton = document.querySelector("#start-play-game");
 const cancelPlaySetupButton = document.querySelector("#cancel-play-setup");
 const lockedGameSummaryEl = document.querySelector("#locked-game-summary");
 const lockedGameTextEl = document.querySelector("#locked-game-text");
+const analyseEndedGameButton = document.querySelector("#analyse-ended-game");
 const pgnInputEl = document.querySelector("#pgn-input");
 const pgnFileInput = document.querySelector("#pgn-file");
 const importPgnButton = document.querySelector("#import-pgn");
@@ -213,6 +214,22 @@ function startAnalyseGame() {
   render();
 }
 
+function analyseCurrentGame() {
+  if (!game || !getActivePath().length) return;
+
+  stopEngineSearch();
+  stopPlayback();
+  appMode = "analyse";
+  playGameStarted = false;
+  gameMode = "human";
+  engineStatus = "Human";
+  clearSelection();
+  pgnStatus = "Game";
+  resetChatPromptStatus();
+  updateModeVisibility();
+  render();
+}
+
 function updateModeVisibility() {
   startScreenEl.hidden = appMode !== "start";
   appWorkspaceEl.hidden = appMode === "start";
@@ -259,6 +276,7 @@ function updateLockedGameSummary() {
   playSetupControlsEl.hidden = appMode === "play" && playGameStarted;
   lockedGameSummaryEl.hidden = appMode !== "play" || !playGameStarted;
   lockedGameTextEl.textContent = getLockedGameLabel();
+  analyseEndedGameButton.hidden = appMode !== "play" || !playGameStarted || !isGameOver();
 }
 
 function getLockedGameLabel() {
@@ -1112,6 +1130,14 @@ function queueLiveTutorAnalysis() {
 
 function getLiveTutorFens() {
   const currentNode = getCurrentNode();
+  if (appMode === "analyse" && getActivePath().length) {
+    const activePath = getActivePath();
+    return [
+      moveTree.nodes[moveTree.rootId].fen,
+      ...activePath.map((node) => node.fen),
+    ].filter((fen, index, allFens) => fen && allFens.indexOf(fen) === index);
+  }
+
   const fens = [game.fen()];
 
   if (currentNode?.parentId) {
@@ -1282,7 +1308,84 @@ function formatMoveClassification(classification) {
   ].join("; ");
 }
 
-function buildChatGptCoachPrompt() {
+function getGameResultForChat() {
+  if (game.in_checkmate()) {
+    return `Checkmate, ${game.turn() === "w" ? "Black" : "White"} wins`;
+  }
+
+  if (game.in_stalemate()) return "Stalemate";
+  if (game.in_draw()) return "Draw";
+  return "Game in progress";
+}
+
+function getGameReviewHighlights() {
+  const activePath = getActivePath();
+  const highlights = [];
+
+  activePath.forEach((node) => {
+    const parentNode = moveTree.nodes[node.parentId];
+    const parentAnalysis = parentNode ? liveTutorResults.get(parentNode.fen) || null : null;
+    const currentAnalysis = liveTutorResults.get(node.fen) || null;
+    const classification = classifyCurrentMove(node, parentAnalysis, currentAnalysis);
+
+    if (!classification || classification.label === "Excellent / Best") return;
+
+    highlights.push(
+      `${node.moveNumber}${node.color === "b" ? "..." : "."} ${node.san}: ${classification.label}, ${classification.drop} cp drop (${formatCentipawnScore(classification.before)} to ${formatCentipawnScore(classification.after)} for ${classification.mover})`,
+    );
+  });
+
+  return highlights.slice(0, 8);
+}
+
+function getGameReviewCoverage() {
+  const activePath = getActivePath();
+  if (!activePath.length) return "No moves available yet.";
+
+  const analysedMoves = activePath.filter((node) => {
+    const parentNode = moveTree.nodes[node.parentId];
+    return parentNode && liveTutorResults.has(parentNode.fen) && liveTutorResults.has(node.fen);
+  }).length;
+
+  return `${analysedMoves} of ${activePath.length} moves have before/after engine context cached. Use available highlights only if review is still filling in.`;
+}
+
+function buildWholeGameCoachPrompt() {
+  const context = getCurrentGameContextForChat();
+  const highlights = getGameReviewHighlights();
+  const currentEval = formatPerspectiveScore(context.currentAnalysis?.score, context.playerColor);
+  const whiteEval = formatWhiteScore(context.currentAnalysis?.score);
+
+  return [
+    "You are an encouraging, insightful human chess coach around 2200 Elo.",
+    "CRITICAL: Do not calculate moves yourself. Trust the engine data below. If engine review coverage is partial, say so briefly and focus only on the available evidence.",
+    "Review the whole game, not just the currently selected position.",
+    "Reply with 3-5 concise learning points, the biggest turning point, recurring themes, and one practical training takeaway.",
+    "Avoid long variation trees. Use plain strategic and tactical language.",
+    "",
+    "[GAME REVIEW]",
+    `Result/status: ${getGameResultForChat()}`,
+    `Coach perspective: ${context.playerPerspective}`,
+    `Opponent setting: ${context.opponent}`,
+    `Full active-line PGN: ${context.activeLine}`,
+    `Engine review coverage: ${getGameReviewCoverage()}`,
+    "",
+    "[KEY ENGINE HIGHLIGHTS]",
+    highlights.length ? highlights.join("\n") : "No major engine-classified mistakes are cached yet.",
+    "",
+    "[CURRENT BOARD AS SECONDARY CONTEXT]",
+    `Selected position FEN: ${context.fen}`,
+    `Selected move/position: ${context.currentMove}`,
+    `Current eval for coach perspective: ${currentEval}`,
+    `Current eval from White perspective: ${whiteEval}`,
+    `Engine best move in selected position: ${formatBestMove(context.currentAnalysis)}`,
+    `Short engine line in selected position: ${formatPv(context.currentAnalysis?.pv)}`,
+    "",
+    "Give me a whole-game review focused on what I should learn and train next.",
+  ].join("\n");
+}
+
+function buildCurrentPositionCoachPrompt() {
   const context = getCurrentGameContextForChat();
   const analysisReady = Boolean(context.currentAnalysis);
   const currentEval = formatPerspectiveScore(context.currentAnalysis?.score, context.playerColor);
@@ -1294,6 +1397,7 @@ function buildChatGptCoachPrompt() {
     "You are an encouraging, insightful human chess coach around 2200 Elo.",
     "CRITICAL: Do not calculate moves yourself. Trust the engine data below. If engine analysis is pending, say so and coach from only the provided FEN and legal moves.",
     "Explain concepts first: king safety, piece activity, pawn structure, open files, weak squares, tempo, threats, or tactical motifs.",
+    "Use the prior moves as context, but focus your coaching on the current position and the best next plan.",
     "Do not spoil the exact engine best move unless I ask for it directly. You may hint at the idea behind it.",
     "Reply in exactly one short paragraph, no bullet points, no headings, and no long variation tree.",
     "",
@@ -1302,7 +1406,7 @@ function buildChatGptCoachPrompt() {
     `Coach me as: ${context.playerPerspective}`,
     `Side to move: ${context.sideToMove}`,
     `Legal moves: ${context.legalMoves}`,
-    `Active line PGN: ${context.activeLine}`,
+    `Prior moves leading here: ${context.activeLine}`,
     `Current selected move/position: ${context.currentMove}`,
     `Branches from current position: ${context.branchCount}`,
     `Captured White pieces: ${context.capturedWhite}`,
@@ -1323,6 +1427,15 @@ function buildChatGptCoachPrompt() {
     "",
     "Give me one practical takeaway from this position. If the last move was a blunder or mistake, explain the human reason it failed and the tactical or strategic punishment without dumping a long line.",
   ].join("\n");
+}
+
+function buildChatGptCoachPrompt() {
+  const hasGameMoves = getActivePath().length > 0;
+  if (appMode === "analyse" && hasGameMoves) {
+    return buildWholeGameCoachPrompt();
+  }
+
+  return buildCurrentPositionCoachPrompt();
 }
 
 function updateChatPrompt() {
@@ -1627,6 +1740,10 @@ startPlayGameButton.addEventListener("click", () => {
 
 cancelPlaySetupButton.addEventListener("click", () => {
   showStartScreen();
+});
+
+analyseEndedGameButton.addEventListener("click", () => {
+  analyseCurrentGame();
 });
 
 importPgnButton.addEventListener("click", () => {
