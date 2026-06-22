@@ -43,6 +43,7 @@ const flipButton = document.querySelector("#flip-board");
 const undoButton = document.querySelector("#undo-move");
 const resetButton = document.querySelector("#reset-game");
 const shaderButtons = document.querySelectorAll(".shader-option");
+const pressureCountsToggle = document.querySelector("#pressure-counts-toggle");
 const opponentButtons = document.querySelectorAll(".opponent-option");
 const sideButtons = document.querySelectorAll(".side-option");
 const engineOptionsEl = document.querySelector("#engine-options");
@@ -71,6 +72,7 @@ let selectedSquare = null;
 let legalMoves = [];
 let flipped = false;
 let shaderMode = "both";
+let showPressureCounts = false;
 let appMode = "start";
 let playGameStarted = false;
 let setupGameMode = "human";
@@ -327,7 +329,6 @@ function render() {
   const legalTargets = new Map(legalMoves.map((move) => [move.to, move]));
   const attackCounts = getAttackCounts();
   const strongestAttack = getStrongestVisibleAttack(attackCounts);
-  const playerColor = getPlayerColor();
 
   getSquares().forEach((square) => {
     const piece = game.get(square);
@@ -346,20 +347,19 @@ function render() {
     button.setAttribute("aria-label", square);
 
     if (visibleAttacks.total) {
-      const enemyColor = playerColor === "w" ? "b" : "w";
-      const redCount = visibleAttacks[enemyColor];
-      const blueCount = visibleAttacks[playerColor];
-
       button.classList.add("attacked");
-      if (redCount) {
-        button.classList.add("attack-red");
-        button.style.setProperty("--red-alpha", getAttackAlpha(redCount, strongestAttack));
+      if (visibleAttacks.w) {
+        button.classList.add("attack-white");
+        button.style.setProperty("--white-pressure", getAttackAlpha(visibleAttacks.w, strongestAttack));
       }
-      if (blueCount) {
-        button.classList.add("attack-blue");
-        button.style.setProperty("--blue-alpha", getAttackAlpha(blueCount, strongestAttack));
+      if (visibleAttacks.b) {
+        button.classList.add("attack-black");
+        button.style.setProperty("--black-pressure", getAttackAlpha(visibleAttacks.b, strongestAttack));
       }
-      button.title = getAttackTitle(square, visibleAttacks, playerColor);
+      if (showPressureCounts) {
+        button.appendChild(createPressureCounts(visibleAttacks));
+      }
+      button.title = getAttackTitle(square, visibleAttacks);
     }
     if (selectedSquare === square) button.classList.add("selected");
     if (legalMove) button.classList.add(/[ce]/.test(legalMove.flags) ? "capture" : "legal");
@@ -387,7 +387,7 @@ function render() {
 
 function getAttackAlpha(count, strongestAttack) {
   const intensity = count / strongestAttack;
-  return String(Math.min(0.76, 0.16 + intensity * 0.52));
+  return String(Math.min(0.94, 0.34 + intensity * 0.48));
 }
 
 function getPlayerColor() {
@@ -418,16 +418,35 @@ function getStrongestVisibleAttack(attackCounts) {
   return strongest;
 }
 
-function getAttackTitle(square, attacks, playerColor) {
-  const colorName = playerColor === "w" ? "White" : "Black";
-  const enemyName = playerColor === "w" ? "Black" : "White";
+function createPressureCounts(attacks) {
+  const counts = document.createElement("span");
+  counts.className = "pressure-counts";
+
+  if (attacks.w) {
+    const whiteCount = document.createElement("span");
+    whiteCount.className = "pressure-count white-count";
+    whiteCount.textContent = `W${attacks.w}`;
+    counts.appendChild(whiteCount);
+  }
+
+  if (attacks.b) {
+    const blackCount = document.createElement("span");
+    blackCount.className = "pressure-count black-count";
+    blackCount.textContent = `B${attacks.b}`;
+    counts.appendChild(blackCount);
+  }
+
+  return counts;
+}
+
+function getAttackTitle(square, attacks) {
   const labels = [];
 
-  if (attacks[playerColor]) {
-    labels.push(`${colorName}: ${attacks[playerColor]}`);
+  if (attacks.w) {
+    labels.push(`White ${attacks.w}`);
   }
-  if (attacks[playerColor === "w" ? "b" : "w"]) {
-    labels.push(`${enemyName}: ${attacks[playerColor === "w" ? "b" : "w"]}`);
+  if (attacks.b) {
+    labels.push(`Black ${attacks.b}`);
   }
 
   return `${square}: ${labels.join(", ")}`;
@@ -454,6 +473,9 @@ function updateShaderControls() {
   shaderButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.shaderMode === shaderMode);
   });
+  pressureCountsToggle.classList.toggle("active", showPressureCounts);
+  pressureCountsToggle.textContent = showPressureCounts ? "Counts on" : "Counts off";
+  pressureCountsToggle.setAttribute("aria-pressed", String(showPressureCounts));
 }
 
 function getAttackedSquares(square, piece) {
@@ -1698,6 +1720,11 @@ shaderButtons.forEach((button) => {
     shaderMode = shaderMode === button.dataset.shaderMode ? "off" : button.dataset.shaderMode;
     render();
   });
+});
+
+pressureCountsToggle.addEventListener("click", () => {
+  showPressureCounts = !showPressureCounts;
+  render();
 });
 
 opponentButtons.forEach((button) => {
