@@ -355,17 +355,12 @@ function render() {
     if (visibleAttacks.total) {
       button.classList.add("attacked");
       if (visibleAttacks.w) {
-        const whiteStyle = getAttackPressureStyle(visibleAttacks.w);
         button.classList.add("attack-white");
-        button.style.setProperty("--white-fill", whiteStyle.fill);
-        button.style.setProperty("--white-opacity", whiteStyle.opacity);
       }
       if (visibleAttacks.b) {
-        const blackStyle = getAttackPressureStyle(visibleAttacks.b);
         button.classList.add("attack-black");
-        button.style.setProperty("--black-fill", blackStyle.fill);
-        button.style.setProperty("--black-opacity", blackStyle.opacity);
       }
+      button.appendChild(createPressureWedges(visibleAttacks));
       if (showPressureCounts) {
         button.appendChild(createPressureCounts(visibleAttacks));
       }
@@ -395,29 +390,6 @@ function render() {
   scheduleLiveTutorAnalysis();
 }
 
-function getAttackPressureStyle(count) {
-  const cappedCount = Math.min(5, Math.max(1, count));
-  const fillByCount = {
-    1: "24%",
-    2: "38%",
-    3: "52%",
-    4: "68%",
-    5: "84%",
-  };
-  const opacityByCount = {
-    1: "0.34",
-    2: "0.44",
-    3: "0.54",
-    4: "0.64",
-    5: "0.76",
-  };
-
-  return {
-    fill: fillByCount[cappedCount],
-    opacity: opacityByCount[cappedCount],
-  };
-}
-
 function getPlayerColor() {
   return flipped ? "b" : "w";
 }
@@ -433,6 +405,36 @@ function getVisibleAttacks(attacks) {
   };
   visible.total = visible.w + visible.b;
   return visible;
+}
+
+function createPressureWedges(attacks) {
+  const wedges = document.createElement("span");
+  wedges.className = "pressure-wedges";
+
+  if (attacks.w) {
+    wedges.appendChild(createPressureWedgeGroup("white", attacks.w));
+  }
+  if (attacks.b) {
+    wedges.appendChild(createPressureWedgeGroup("black", attacks.b));
+  }
+
+  return wedges;
+}
+
+function createPressureWedgeGroup(color, count) {
+  const group = document.createElement("span");
+  const visibleCount = Math.min(8, count);
+  group.className = `pressure-wedge-group ${color}-wedge-group`;
+  group.setAttribute("aria-hidden", "true");
+  group.style.setProperty("--wedge-count", String(visibleCount));
+
+  for (let i = 0; i < visibleCount; i += 1) {
+    const wedge = document.createElement("span");
+    wedge.className = `pressure-wedge ${color}-wedge`;
+    group.appendChild(wedge);
+  }
+
+  return group;
 }
 
 function createPressureCounts(attacks) {
