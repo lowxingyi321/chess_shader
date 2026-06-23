@@ -140,9 +140,7 @@ button {
 
 .eyebrow,
 .topbar h1,
-.panel-heading h2,
-.captures p,
-.captures span {
+.panel-heading h2 {
   margin: 0;
 }
 
@@ -692,6 +690,15 @@ button {
   line-height: 1.35;
 }
 
+.game-export-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.game-export-actions .secondary-action {
+  margin-top: 0;
+}
+
 .shader-controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1042,34 +1049,6 @@ button {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 800;
-}
-
-.captures {
-  display: grid;
-  gap: 12px;
-}
-
-.captures div {
-  min-height: 64px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.captures span {
-  display: block;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.captures p {
-  min-height: 30px;
-  padding-top: 6px;
-  font-family: "Segoe UI Symbol", "Apple Color Emoji", serif;
-  font-size: 1.45rem;
-  line-height: 1.1;
 }
 
 .moves-section {

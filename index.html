@@ -150,7 +150,6 @@
           <div id="locked-game-summary" class="locked-game-summary" hidden>
             <span>Locked for this game</span>
             <strong id="locked-game-text">Human vs human</strong>
-            <button id="copy-play-pgn" class="secondary-action" type="button">Copy PGN</button>
             <button id="resign-game" class="danger-action" type="button">Resign</button>
             <button id="analyse-ended-game" class="primary-action" type="button" hidden>Analyse this game</button>
           </div>
@@ -176,22 +175,6 @@
 
         <section class="panel-section">
           <div class="panel-heading">
-            <h2>Captured</h2>
-          </div>
-          <div class="captures">
-            <div>
-              <span>White</span>
-              <p id="captured-white"></p>
-            </div>
-            <div>
-              <span>Black</span>
-              <p id="captured-black"></p>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <div class="panel-heading">
             <h2>Coach</h2>
             <span id="chat-prompt-state" class="chat-prompt-state">Ready</span>
           </div>
@@ -205,6 +188,16 @@
           <div class="chat-actions">
             <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
             <button id="copy-chat-prompt" type="button">Copy prompt</button>
+          </div>
+        </section>
+
+        <section id="game-export-panel" class="panel-section">
+          <div class="panel-heading">
+            <h2>Game Export</h2>
+          </div>
+          <div class="game-export-actions">
+            <button id="copy-pgn" class="secondary-action" type="button">Copy PGN</button>
+            <button id="copy-pgn-analysis" class="secondary-action" type="button">Copy PGN + Engine Analysis</button>
           </div>
         </section>
       </aside>

@@ -46,8 +46,6 @@ const boardEl = document.querySelector("#board");
 const statusEl = document.querySelector("#status");
 const moveListEl = document.querySelector("#move-list");
 const moveCountEl = document.querySelector("#move-count");
-const capturedWhiteEl = document.querySelector("#captured-white");
-const capturedBlackEl = document.querySelector("#captured-black");
 const flipButton = document.querySelector("#flip-board");
 const undoButton = document.querySelector("#undo-move");
 const resetButton = document.querySelector("#reset-game");
@@ -71,7 +69,8 @@ const startPlayGameButton = document.querySelector("#start-play-game");
 const cancelPlaySetupButton = document.querySelector("#cancel-play-setup");
 const lockedGameSummaryEl = document.querySelector("#locked-game-summary");
 const lockedGameTextEl = document.querySelector("#locked-game-text");
-const copyPlayPgnButton = document.querySelector("#copy-play-pgn");
+const copyPgnButton = document.querySelector("#copy-pgn");
+const copyPgnAnalysisButton = document.querySelector("#copy-pgn-analysis");
 const resignGameButton = document.querySelector("#resign-game");
 const analyseEndedGameButton = document.querySelector("#analyse-ended-game");
 const pgnInputEl = document.querySelector("#pgn-input");
@@ -415,7 +414,6 @@ function render() {
 
   updateStatus();
   updateHistory();
-  updateCaptured();
   updateInfluence();
   updateShaderControls();
   updateOpponentControls();
@@ -1702,21 +1700,28 @@ async function copyTextToClipboard(text) {
   }
 }
 
-async function copyPlayPgn() {
-  const pgn = buildExportPgn();
-  const originalText = copyPlayPgnButton.textContent;
+async function copyExportText(button, text, fallbackTitle) {
+  const originalText = button.textContent;
 
   try {
-    await copyTextToClipboard(pgn);
-    copyPlayPgnButton.textContent = "Copied";
+    await copyTextToClipboard(text);
+    button.textContent = "Copied";
   } catch (error) {
-    window.prompt("Copy PGN", pgn);
-    copyPlayPgnButton.textContent = "Select PGN";
+    window.prompt(fallbackTitle, text);
+    button.textContent = "Select text";
   }
 
   window.setTimeout(() => {
-    copyPlayPgnButton.textContent = originalText || "Copy PGN";
+    button.textContent = originalText;
   }, 1400);
+}
+
+function copyPgn() {
+  copyExportText(copyPgnButton, buildExportPgn(), "Copy PGN");
+}
+
+function copyPgnWithEngineAnalysis() {
+  copyExportText(copyPgnAnalysisButton, buildExportPgnWithEngineAnalysis(), "Copy PGN + Engine Analysis");
 }
 
 function buildExportPgn() {
@@ -1741,6 +1746,35 @@ function buildExportPgn() {
   const body = moveText === "No moves yet." ? result : `${moveText} ${result}`;
 
   return `${headerText}\n\n${body}`;
+}
+
+function buildExportPgnWithEngineAnalysis() {
+  const context = getCurrentGameContextForChat();
+  const highlights = getGameReviewHighlights();
+  const currentEval = formatPerspectiveScore(context.currentAnalysis?.score, context.playerColor);
+  const whiteEval = formatWhiteScore(context.currentAnalysis?.score);
+
+  return [
+    buildExportPgn(),
+    "",
+    "ENGINE ANALYSIS",
+    `Result/status: ${getGameResultForChat()}`,
+    `Opponent setting: ${context.opponent}`,
+    `Coach perspective: ${context.playerPerspective}`,
+    `Engine review coverage: ${getGameReviewCoverage()}`,
+    "",
+    "Key move highlights:",
+    highlights.length ? highlights.join("\n") : "No major engine-classified mistakes are cached yet.",
+    "",
+    "Selected position context:",
+    `FEN: ${context.fen}`,
+    `Selected move/position: ${context.currentMove}`,
+    `Current eval for coach perspective: ${currentEval}`,
+    `Current eval from White perspective: ${whiteEval}`,
+    `Engine best move: ${formatBestMove(context.currentAnalysis)}`,
+    `Short engine line: ${formatPv(context.currentAnalysis?.pv)}`,
+    `Search depth: ${context.currentAnalysis?.depth || "Pending"}`,
+  ].join("\n");
 }
 
 function getPgnDate() {
@@ -1971,12 +2005,6 @@ function createBranchChoices(node, activePath) {
   return branches;
 }
 
-function updateCaptured() {
-  const captured = getCapturedPieces();
-  capturedWhiteEl.textContent = captured.white.map((type) => pieces[`w${type}`]).join(" ");
-  capturedBlackEl.textContent = captured.black.map((type) => pieces[`b${type}`]).join(" ");
-}
-
 function getCapturedPieces() {
   const starting = { p: 8, n: 2, b: 2, r: 2, q: 1 };
   const remaining = {
@@ -2093,8 +2121,12 @@ analyseEndedGameButton.addEventListener("click", () => {
   analyseCurrentGame();
 });
 
-copyPlayPgnButton.addEventListener("click", () => {
-  copyPlayPgn();
+copyPgnButton.addEventListener("click", () => {
+  copyPgn();
+});
+
+copyPgnAnalysisButton.addEventListener("click", () => {
+  copyPgnWithEngineAnalysis();
 });
 
 resignGameButton.addEventListener("click", () => {
