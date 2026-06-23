@@ -33,6 +33,7 @@ const pieceTypeLabels = {
   q: "Queen",
   k: "King",
 };
+const chessBardUrl = "https://chatgpt.com/g/g-6a3ab694f4248191aa9652a5e01205f9-chess-bard";
 const liveTutorMoveTime = 500;
 const liveTutorDebounceMs = 180;
 
@@ -71,6 +72,7 @@ const lockedGameSummaryEl = document.querySelector("#locked-game-summary");
 const lockedGameTextEl = document.querySelector("#locked-game-text");
 const copyPgnButton = document.querySelector("#copy-pgn");
 const copyPgnAnalysisButton = document.querySelector("#copy-pgn-analysis");
+const openChessBardButton = document.querySelector("#open-chess-bard");
 const resignGameButton = document.querySelector("#resign-game");
 const analyseEndedGameButton = document.querySelector("#analyse-ended-game");
 const pgnInputEl = document.querySelector("#pgn-input");
@@ -1724,6 +1726,25 @@ function copyPgnWithEngineAnalysis() {
   copyExportText(copyPgnAnalysisButton, buildExportPgnWithEngineAnalysis(), "Copy PGN + Engine Analysis");
 }
 
+async function copyAndOpenChessBard() {
+  const originalText = openChessBardButton.textContent;
+  const analysisText = buildExportPgnWithEngineAnalysis();
+
+  try {
+    await copyTextToClipboard(analysisText);
+    openChessBardButton.textContent = "Copied + Opened";
+  } catch (error) {
+    window.prompt("Copy PGN + Engine Analysis", analysisText);
+    openChessBardButton.textContent = "Opened";
+  }
+
+  window.open(chessBardUrl, "_blank", "noopener,noreferrer");
+
+  window.setTimeout(() => {
+    openChessBardButton.textContent = originalText;
+  }, 1600);
+}
+
 function buildExportPgn() {
   const result = getPgnResult();
   const rootFen = moveTree.nodes[moveTree.rootId].fen;
@@ -2127,6 +2148,10 @@ copyPgnButton.addEventListener("click", () => {
 
 copyPgnAnalysisButton.addEventListener("click", () => {
   copyPgnWithEngineAnalysis();
+});
+
+openChessBardButton.addEventListener("click", () => {
+  copyAndOpenChessBard();
 });
 
 resignGameButton.addEventListener("click", () => {
