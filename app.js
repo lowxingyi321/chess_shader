@@ -189,19 +189,25 @@ function showStartScreen() {
   gameMode = "human";
   engineStatus = "Human";
   stopEngineSearch();
+  terminateOpponentEngine();
   stopPlayback();
   clearSelection();
   updateModeVisibility();
 }
 
 function showPlaySetup() {
+  const shouldWarmStockfish = setupGameMode === "stockfish";
   appMode = "play";
   playGameStarted = false;
   gameMode = "human";
-  engineStatus = "Human";
+  stopEngineSearch();
+  engineStatus = engine ? (engineReady ? "Ready" : engineStatus) : "Human";
   resetBoardState();
   updateModeVisibility();
   render();
+  if (shouldWarmStockfish) {
+    initEngine();
+  }
 }
 
 function startPlayGame() {
@@ -211,9 +217,12 @@ function startPlayGame() {
   humanColor = setupHumanColor;
   stockfishLevel = setupStockfishLevel;
   resetBoardState();
-  if (engineReady) {
-    sendEngineCommand("ucinewgame");
+  if (gameMode !== "stockfish") {
+    terminateOpponentEngine();
+  }
+  if (gameMode === "stockfish" && engineReady) {
     sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
+    sendEngineCommand("ucinewgame");
   }
   engineStatus = gameMode === "human" ? "Human" : engineReady ? "Ready" : "Loading";
   updateModeVisibility();
@@ -227,6 +236,7 @@ function startAnalyseGame() {
   playGameStarted = false;
   gameMode = "human";
   engineStatus = "Human";
+  terminateOpponentEngine();
   resetBoardState();
   pgnStatus = "Ready";
   updateModeVisibility();
@@ -238,6 +248,7 @@ function analyseCurrentGame() {
 
   stopEngineSearch();
   stopPlayback();
+  terminateOpponentEngine();
   appMode = "analyse";
   playGameStarted = false;
   gameMode = "human";
@@ -962,7 +973,9 @@ function isGameOver() {
 }
 
 function initEngine() {
-  if (engine || appMode !== "play" || !playGameStarted || gameMode !== "stockfish") return;
+  const shouldWarmForSetup = appMode === "play" && !playGameStarted && setupGameMode === "stockfish";
+  const shouldRunForGame = appMode === "play" && playGameStarted && gameMode === "stockfish";
+  if (engine || (!shouldWarmForSetup && !shouldRunForGame)) return;
 
   engineReady = false;
   engineThinking = false;
@@ -987,7 +1000,6 @@ function initEngine() {
   };
 
   sendEngineCommand("uci");
-  sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
   sendEngineCommand("isready");
 }
 
@@ -995,9 +1007,13 @@ function handleEngineMessage(message) {
   if (message === "readyok") {
     engineReady = true;
     engineStatus = "Ready";
-    sendEngineCommand("ucinewgame");
+    if (appMode === "play" && playGameStarted && gameMode === "stockfish") {
+      sendEngineCommand(`setoption name Skill Level value ${stockfishLevel}`);
+      sendEngineCommand("ucinewgame");
+    }
     updateOpponentControls();
     requestEngineMoveIfNeeded();
+    scheduleLiveTutorAnalysis();
     return;
   }
 
@@ -1025,6 +1041,7 @@ function handleEngineMessage(message) {
   if (move) {
     applyMoveToTree(move);
   }
+  scheduleLiveTutorAnalysis();
 }
 
 function requestEngineMoveIfNeeded() {
@@ -1077,11 +1094,34 @@ function stopEngineSearch() {
   engineStatus = engineReady ? "Ready" : gameMode === "stockfish" ? "Loading" : "Human";
 }
 
+function terminateOpponentEngine() {
+  engineMoveRequestId += 1;
+  activeEngineRequestId = engineMoveRequestId;
+  activeEngineFen = null;
+  if (engine) {
+    try {
+      engine.postMessage("quit");
+    } catch (error) {
+      // Worker may already be unavailable.
+    }
+    try {
+      engine.terminate();
+    } catch (error) {
+      // Worker may already be terminated.
+    }
+  }
+  engine = null;
+  engineReady = false;
+  engineThinking = false;
+  engineStatus = "Human";
+}
+
 function updateOpponentControls() {
   updateSetupControls();
   updateLockedGameSummary();
-  engineStateEl.textContent =
-    appMode === "play" && playGameStarted && gameMode === "stockfish" ? engineStatus : "Human";
+  const setupStockfishSelected = appMode === "play" && !playGameStarted && setupGameMode === "stockfish";
+  const activeStockfishGame = appMode === "play" && playGameStarted && gameMode === "stockfish";
+  engineStateEl.textContent = setupStockfishSelected || activeStockfishGame ? engineStatus : "Human";
 }
 
 function initLiveTutorEngine() {
@@ -1224,6 +1264,7 @@ function sendLiveTutorCommand(command) {
 
 function scheduleLiveTutorAnalysis() {
   if (!game || appMode === "start") return;
+  if (appMode === "play" && !playGameStarted) return;
 
   window.clearTimeout(liveTutorTimer);
   updateLiveTutorStatus();
@@ -1236,6 +1277,14 @@ function scheduleLiveTutorAnalysis() {
 
 function queueLiveTutorAnalysis() {
   if (!game) return;
+  if (shouldDeferLiveTutorForOpponent()) {
+    liveTutorStatus = "Analysis pending";
+    updateChatPrompt();
+    liveTutorTimer = window.setTimeout(() => {
+      queueLiveTutorAnalysis();
+    }, liveTutorDebounceMs * 2);
+    return;
+  }
 
   initLiveTutorEngine();
   const fens = getLiveTutorFens();
@@ -1265,6 +1314,12 @@ function queueLiveTutorAnalysis() {
 
   processLiveTutorQueue();
   updateChatPrompt();
+}
+
+function shouldDeferLiveTutorForOpponent() {
+  if (appMode !== "play" || !playGameStarted || gameMode !== "stockfish") return false;
+  if (!engineReady || engineThinking) return true;
+  return !getActivePath().length && game.turn() !== humanColor;
 }
 
 function getLiveTutorFens() {
@@ -1299,6 +1354,11 @@ function processLiveTutorQueue() {
 }
 
 function updateLiveTutorStatus() {
+  if (shouldDeferLiveTutorForOpponent()) {
+    liveTutorStatus = "Analysis pending";
+    return;
+  }
+
   if (!liveTutorEngine) {
     liveTutorStatus = "No engine";
     return;
@@ -1947,6 +2007,9 @@ opponentButtons.forEach((button) => {
     if (playGameStarted) return;
     setupGameMode = button.dataset.gameMode;
     updateModeVisibility();
+    if (setupGameMode === "stockfish") {
+      initEngine();
+    }
   });
 });
 
