@@ -89,19 +89,38 @@
       <aside class="side-panel" aria-label="Game details">
         <section class="panel-section">
           <div class="panel-heading">
-            <h2>ChatGPT Coach</h2>
-            <span id="chat-prompt-state" class="chat-prompt-state">Ready</span>
+            <h2>Influence</h2>
+            <span id="influence-edge" class="influence-edge">Even</span>
           </div>
-          <textarea
-            id="chat-prompt"
-            class="chat-prompt"
-            rows="7"
-            readonly
-            aria-label="ChatGPT chess coach prompt"
-          ></textarea>
-          <div class="chat-actions">
-            <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
-            <button id="copy-chat-prompt" type="button">Copy prompt</button>
+          <div class="influence-summary">
+            <div class="influence-total white-influence-total">
+              <span>White</span>
+              <strong id="white-influence-total">0</strong>
+            </div>
+            <div class="influence-total black-influence-total">
+              <span>Black</span>
+              <strong id="black-influence-total">0</strong>
+            </div>
+          </div>
+          <div class="influence-breakdown" aria-label="Influence by piece type">
+            <div>
+              <span>White pieces</span>
+              <p id="white-influence-types"></p>
+            </div>
+            <div>
+              <span>Black pieces</span>
+              <p id="black-influence-types"></p>
+            </div>
+          </div>
+          <div class="influence-pieces" aria-label="Top influence pieces">
+            <details>
+              <summary>White contributors</summary>
+              <ol id="white-influence-pieces"></ol>
+            </details>
+            <details>
+              <summary>Black contributors</summary>
+              <ol id="black-influence-pieces"></ol>
+            </details>
           </div>
         </section>
 
@@ -167,6 +186,24 @@
               <span>Black</span>
               <p id="captured-black"></p>
             </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-heading">
+            <h2>Coach</h2>
+            <span id="chat-prompt-state" class="chat-prompt-state">Ready</span>
+          </div>
+          <textarea
+            id="chat-prompt"
+            class="chat-prompt"
+            rows="7"
+            readonly
+            aria-label="Chess coach prompt"
+          ></textarea>
+          <div class="chat-actions">
+            <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
+            <button id="copy-chat-prompt" type="button">Copy prompt</button>
           </div>
         </section>
       </aside>

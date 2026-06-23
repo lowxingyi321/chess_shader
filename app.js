@@ -24,6 +24,15 @@ const pieceValues = {
 const promotionPieces = ["q", "r", "b", "n"];
 const boardFiles = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const boardRanks = ["1", "2", "3", "4", "5", "6", "7", "8"];
+const pieceTypeOrder = ["p", "n", "b", "r", "q", "k"];
+const pieceTypeLabels = {
+  p: "Pawns",
+  n: "Knights",
+  b: "Bishops",
+  r: "Rooks",
+  q: "Queen",
+  k: "King",
+};
 const liveTutorMoveTime = 500;
 const liveTutorDebounceMs = 180;
 
@@ -44,6 +53,13 @@ const undoButton = document.querySelector("#undo-move");
 const resetButton = document.querySelector("#reset-game");
 const shaderButtons = document.querySelectorAll(".shader-option");
 const pressureCountsToggle = document.querySelector("#pressure-counts-toggle");
+const influenceEdgeEl = document.querySelector("#influence-edge");
+const whiteInfluenceTotalEl = document.querySelector("#white-influence-total");
+const blackInfluenceTotalEl = document.querySelector("#black-influence-total");
+const whiteInfluenceTypesEl = document.querySelector("#white-influence-types");
+const blackInfluenceTypesEl = document.querySelector("#black-influence-types");
+const whiteInfluencePiecesEl = document.querySelector("#white-influence-pieces");
+const blackInfluencePiecesEl = document.querySelector("#black-influence-pieces");
 const opponentButtons = document.querySelectorAll(".opponent-option");
 const sideButtons = document.querySelectorAll(".side-option");
 const engineOptionsEl = document.querySelector("#engine-options");
@@ -383,6 +399,7 @@ function render() {
   updateStatus();
   updateHistory();
   updateCaptured();
+  updateInfluence();
   updateShaderControls();
   updateOpponentControls();
   updatePgnStatus();
@@ -487,6 +504,86 @@ function getAttackCounts() {
   });
 
   return counts;
+}
+
+function getInfluenceSummary() {
+  const summary = {
+    totals: { w: 0, b: 0 },
+    byType: {
+      w: createEmptyInfluenceTypes(),
+      b: createEmptyInfluenceTypes(),
+    },
+    pieces: [],
+  };
+
+  getBoardSquares().forEach((square) => {
+    const piece = game.get(square);
+    if (!piece) return;
+
+    const controlledSquares = getAttackedSquares(square, piece);
+    const count = controlledSquares.length;
+
+    summary.totals[piece.color] += count;
+    summary.byType[piece.color][piece.type] += count;
+    summary.pieces.push({
+      color: piece.color,
+      type: piece.type,
+      square,
+      count,
+    });
+  });
+
+  summary.pieces.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.square.localeCompare(b.square);
+  });
+
+  return summary;
+}
+
+function createEmptyInfluenceTypes() {
+  return pieceTypeOrder.reduce((types, type) => {
+    types[type] = 0;
+    return types;
+  }, {});
+}
+
+function updateInfluence() {
+  const influence = getInfluenceSummary();
+  const diff = influence.totals.w - influence.totals.b;
+
+  whiteInfluenceTotalEl.textContent = influence.totals.w;
+  blackInfluenceTotalEl.textContent = influence.totals.b;
+  influenceEdgeEl.textContent =
+    diff > 0 ? `White +${diff}` : diff < 0 ? `Black +${Math.abs(diff)}` : "Even";
+  influenceEdgeEl.classList.toggle("white-edge", diff > 0);
+  influenceEdgeEl.classList.toggle("black-edge", diff < 0);
+
+  whiteInfluenceTypesEl.textContent = formatInfluenceTypes(influence.byType.w);
+  blackInfluenceTypesEl.textContent = formatInfluenceTypes(influence.byType.b);
+  renderInfluencePieces(whiteInfluencePiecesEl, influence.pieces.filter((piece) => piece.color === "w"));
+  renderInfluencePieces(blackInfluencePiecesEl, influence.pieces.filter((piece) => piece.color === "b"));
+}
+
+function formatInfluenceTypes(types) {
+  return pieceTypeOrder
+    .map((type) => `${pieceTypeLabels[type]} ${types[type]}`)
+    .join(", ");
+}
+
+function renderInfluencePieces(container, sidePieces) {
+  container.innerHTML = "";
+
+  sidePieces.forEach((piece) => {
+    const item = document.createElement("li");
+    const pieceLabel = document.createElement("span");
+    const countLabel = document.createElement("strong");
+
+    pieceLabel.textContent = `${pieces[`${piece.color}${piece.type}`]} ${piece.square}`;
+    countLabel.textContent = piece.count;
+    item.append(pieceLabel, countLabel);
+    container.appendChild(item);
+  });
 }
 
 function updateShaderControls() {
