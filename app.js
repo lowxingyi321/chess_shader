@@ -72,6 +72,7 @@ const cancelPlaySetupButton = document.querySelector("#cancel-play-setup");
 const lockedGameSummaryEl = document.querySelector("#locked-game-summary");
 const lockedGameTextEl = document.querySelector("#locked-game-text");
 const copyPlayPgnButton = document.querySelector("#copy-play-pgn");
+const resignGameButton = document.querySelector("#resign-game");
 const analyseEndedGameButton = document.querySelector("#analyse-ended-game");
 const pgnInputEl = document.querySelector("#pgn-input");
 const pgnFileInput = document.querySelector("#pgn-file");
@@ -120,6 +121,7 @@ let liveTutorActiveRequest = null;
 let liveTutorQueue = [];
 let liveTutorRequestId = 0;
 let liveTutorResults = new Map();
+let resignationResult = null;
 
 function waitForChess() {
   if (window.Chess) {
@@ -174,6 +176,7 @@ function createMoveTree(rootFen) {
 function resetBoardState(rootFen) {
   stopEngineSearch();
   stopPlayback();
+  resignationResult = null;
   moveTree = createMoveTree(rootFen);
   nextNodeId = 1;
   currentNodeId = moveTree.rootId;
@@ -244,11 +247,13 @@ function startAnalyseGame() {
 }
 
 function analyseCurrentGame() {
-  if (!game || !getActivePath().length) return;
+  if (!game || (!getActivePath().length && !resignationResult)) return;
 
+  const endedByResignation = resignationResult;
   stopEngineSearch();
   stopPlayback();
   terminateOpponentEngine();
+  resignationResult = endedByResignation;
   appMode = "analyse";
   playGameStarted = false;
   gameMode = "human";
@@ -306,6 +311,7 @@ function updateLockedGameSummary() {
   playSetupControlsEl.hidden = appMode === "play" && playGameStarted;
   lockedGameSummaryEl.hidden = appMode !== "play" || !playGameStarted;
   lockedGameTextEl.textContent = getLockedGameLabel();
+  resignGameButton.hidden = appMode !== "play" || !playGameStarted || isGameOver();
   analyseEndedGameButton.hidden = appMode !== "play" || !playGameStarted || !isGameOver();
 }
 
@@ -965,11 +971,12 @@ function getMoveNumberFromFen(fen) {
 function canHumanMove() {
   if (appMode === "analyse") return true;
   if (appMode !== "play" || !playGameStarted) return false;
+  if (isGameOver()) return false;
   return gameMode === "human" || (!engineThinking && game.turn() === humanColor);
 }
 
 function isGameOver() {
-  return game.in_checkmate() || game.in_stalemate() || game.in_draw();
+  return Boolean(resignationResult) || game.in_checkmate() || game.in_stalemate() || game.in_draw();
 }
 
 function initEngine() {
@@ -1031,6 +1038,7 @@ function handleEngineMessage(message) {
     requestId !== engineMoveRequestId ||
     searchedFen !== game.fen() ||
     gameMode !== "stockfish" ||
+    isGameOver() ||
     !bestMove ||
     bestMove === "(none)"
   ) {
@@ -1508,6 +1516,10 @@ function formatMoveClassification(classification) {
 }
 
 function getGameResultForChat() {
+  if (resignationResult) {
+    return `${resignationResult.resignedLabel} resigned, ${resignationResult.winnerLabel} wins`;
+  }
+
   if (game.in_checkmate()) {
     return `Checkmate, ${game.turn() === "w" ? "Black" : "White"} wins`;
   }
@@ -1629,8 +1641,7 @@ function buildCurrentPositionCoachPrompt() {
 }
 
 function buildChatGptCoachPrompt() {
-  const hasGameMoves = getActivePath().length > 0;
-  if (appMode === "analyse" && hasGameMoves) {
+  if (appMode === "analyse") {
     return buildWholeGameCoachPrompt();
   }
 
@@ -1750,6 +1761,10 @@ function getPgnPlayerName(color) {
 }
 
 function getPgnResult() {
+  if (resignationResult) {
+    return resignationResult.result;
+  }
+
   if (game.in_checkmate()) {
     return game.turn() === "w" ? "0-1" : "1-0";
   }
@@ -1764,6 +1779,27 @@ function getPgnResult() {
 function isDefaultStartingFen(fen) {
   const defaultGame = new window.Chess();
   return fen === defaultGame.fen();
+}
+
+function resignCurrentGame() {
+  if (appMode !== "play" || !playGameStarted || isGameOver()) return;
+
+  const resignedColor = gameMode === "stockfish" ? humanColor : game.turn();
+  const resignedLabel = resignedColor === "w" ? "White" : "Black";
+  const winnerLabel = resignedColor === "w" ? "Black" : "White";
+  const confirmed = window.confirm(`Resign as ${resignedLabel}?`);
+  if (!confirmed) return;
+
+  stopEngineSearch();
+  clearSelection();
+  resignationResult = {
+    resignedColor,
+    resignedLabel,
+    winnerLabel,
+    result: resignedColor === "w" ? "0-1" : "1-0",
+  };
+  resetChatPromptStatus();
+  render();
 }
 
 function importPgn(pgnText) {
@@ -1786,6 +1822,7 @@ function importPgn(pgnText) {
 
   stopEngineSearch();
   stopPlayback();
+  resignationResult = null;
   moveTree = createMoveTree(getPgnStartingFen(trimmedPgn));
   nextNodeId = 1;
   currentNodeId = moveTree.rootId;
@@ -1832,6 +1869,11 @@ function updateStatus() {
   }
 
   const turn = game.turn() === "w" ? "White" : "Black";
+
+  if (resignationResult) {
+    statusEl.textContent = `${resignationResult.resignedLabel} resigned, ${resignationResult.winnerLabel} wins`;
+    return;
+  }
 
   if (game.in_checkmate()) {
     statusEl.textContent = `Checkmate, ${turn === "White" ? "black" : "white"} wins`;
@@ -2053,6 +2095,10 @@ analyseEndedGameButton.addEventListener("click", () => {
 
 copyPlayPgnButton.addEventListener("click", () => {
   copyPlayPgn();
+});
+
+resignGameButton.addEventListener("click", () => {
+  resignCurrentGame();
 });
 
 importPgnButton.addEventListener("click", () => {

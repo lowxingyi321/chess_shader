@@ -649,6 +649,27 @@ button {
   outline: 2px solid rgba(101, 129, 108, 0.2);
 }
 
+.danger-action {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 8px;
+  border: 1px solid rgba(176, 68, 62, 0.32);
+  border-radius: 6px;
+  background: rgba(176, 68, 62, 0.08);
+  color: var(--capture);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.danger-action:hover,
+.danger-action:focus-visible {
+  border-color: var(--capture);
+  outline: 2px solid rgba(176, 68, 62, 0.18);
+}
+
 .locked-game-summary {
   display: grid;
   gap: 6px;
