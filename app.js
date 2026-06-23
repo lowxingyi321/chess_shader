@@ -55,6 +55,7 @@ const startPlayGameButton = document.querySelector("#start-play-game");
 const cancelPlaySetupButton = document.querySelector("#cancel-play-setup");
 const lockedGameSummaryEl = document.querySelector("#locked-game-summary");
 const lockedGameTextEl = document.querySelector("#locked-game-text");
+const copyPlayPgnButton = document.querySelector("#copy-play-pgn");
 const analyseEndedGameButton = document.querySelector("#analyse-ended-game");
 const pgnInputEl = document.querySelector("#pgn-input");
 const pgnFileInput = document.querySelector("#pgn-file");
@@ -1498,7 +1499,7 @@ async function copyChatPrompt() {
   const prompt = buildChatGptCoachPrompt();
 
   try {
-    await navigator.clipboard.writeText(prompt);
+    await copyTextToClipboard(prompt);
     chatPromptStatus = "Copied";
   } catch (error) {
     chatPromptEl.value = prompt;
@@ -1508,6 +1509,104 @@ async function copyChatPrompt() {
   }
 
   updateChatPrompt();
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Clipboard copy failed");
+  }
+}
+
+async function copyPlayPgn() {
+  const pgn = buildExportPgn();
+  const originalText = copyPlayPgnButton.textContent;
+
+  try {
+    await copyTextToClipboard(pgn);
+    copyPlayPgnButton.textContent = "Copied";
+  } catch (error) {
+    window.prompt("Copy PGN", pgn);
+    copyPlayPgnButton.textContent = "Select PGN";
+  }
+
+  window.setTimeout(() => {
+    copyPlayPgnButton.textContent = originalText || "Copy PGN";
+  }, 1400);
+}
+
+function buildExportPgn() {
+  const result = getPgnResult();
+  const rootFen = moveTree.nodes[moveTree.rootId].fen;
+  const headers = [
+    ["Event", appMode === "play" ? "Play Game" : "Analysis Game"],
+    ["Site", "Chess Shader"],
+    ["Date", getPgnDate()],
+    ["Round", "-"],
+    ["White", getPgnPlayerName("w")],
+    ["Black", getPgnPlayerName("b")],
+    ["Result", result],
+  ];
+
+  if (!isDefaultStartingFen(rootFen)) {
+    headers.push(["SetUp", "1"], ["FEN", rootFen]);
+  }
+
+  const headerText = headers.map(([key, value]) => `[${key} "${value}"]`).join("\n");
+  const moveText = getActiveLinePgnForChat();
+  const body = moveText === "No moves yet." ? result : `${moveText} ${result}`;
+
+  return `${headerText}\n\n${body}`;
+}
+
+function getPgnDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+function getPgnPlayerName(color) {
+  if (appMode !== "play" || gameMode !== "stockfish") {
+    return color === "w" ? "White" : "Black";
+  }
+
+  if (humanColor === color) return "Human";
+  return `Stockfish Level ${stockfishLevel}`;
+}
+
+function getPgnResult() {
+  if (game.in_checkmate()) {
+    return game.turn() === "w" ? "0-1" : "1-0";
+  }
+
+  if (game.in_stalemate() || game.in_draw()) {
+    return "1/2-1/2";
+  }
+
+  return "*";
+}
+
+function isDefaultStartingFen(fen) {
+  const defaultGame = new window.Chess();
+  return fen === defaultGame.fen();
 }
 
 function importPgn(pgnText) {
@@ -1790,6 +1889,10 @@ cancelPlaySetupButton.addEventListener("click", () => {
 
 analyseEndedGameButton.addEventListener("click", () => {
   analyseCurrentGame();
+});
+
+copyPlayPgnButton.addEventListener("click", () => {
+  copyPlayPgn();
 });
 
 importPgnButton.addEventListener("click", () => {
