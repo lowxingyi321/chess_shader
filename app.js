@@ -63,6 +63,7 @@ const opponentButtons = document.querySelectorAll(".opponent-option");
 const sideButtons = document.querySelectorAll(".side-option");
 const engineOptionsEl = document.querySelector("#engine-options");
 const engineStateEl = document.querySelector("#engine-state");
+const playFromPositionNoteEl = document.querySelector("#play-from-position-note");
 const stockfishLevelInput = document.querySelector("#stockfish-level");
 const stockfishLevelValueEl = document.querySelector("#stockfish-level-value");
 const playSetupControlsEl = document.querySelector("#play-setup-controls");
@@ -73,6 +74,7 @@ const lockedGameTextEl = document.querySelector("#locked-game-text");
 const copyPgnButton = document.querySelector("#copy-pgn");
 const copyPgnAnalysisButton = document.querySelector("#copy-pgn-analysis");
 const openChessBardButton = document.querySelector("#open-chess-bard");
+const playFromHereButton = document.querySelector("#play-from-here");
 const resignGameButton = document.querySelector("#resign-game");
 const analyseEndedGameButton = document.querySelector("#analyse-ended-game");
 const pgnInputEl = document.querySelector("#pgn-input");
@@ -100,6 +102,7 @@ let setupStockfishLevel = 8;
 let gameMode = "human";
 let humanColor = "w";
 let stockfishLevel = 8;
+let playStartFen = null;
 let engine = null;
 let engineReady = false;
 let engineThinking = false;
@@ -191,6 +194,7 @@ function showStartScreen() {
   appMode = "start";
   playGameStarted = false;
   gameMode = "human";
+  playStartFen = null;
   engineStatus = "Human";
   stopEngineSearch();
   terminateOpponentEngine();
@@ -199,14 +203,20 @@ function showStartScreen() {
   updateModeVisibility();
 }
 
-function showPlaySetup() {
+function showPlaySetup(options = {}) {
+  if (Object.prototype.hasOwnProperty.call(options, "startFen")) {
+    playStartFen = options.startFen;
+  } else {
+    playStartFen = null;
+  }
+
   const shouldWarmStockfish = setupGameMode === "stockfish";
   appMode = "play";
   playGameStarted = false;
   gameMode = "human";
   stopEngineSearch();
   engineStatus = engine ? (engineReady ? "Ready" : engineStatus) : "Human";
-  resetBoardState();
+  resetBoardState(playStartFen || undefined);
   updateModeVisibility();
   render();
   if (shouldWarmStockfish) {
@@ -220,7 +230,7 @@ function startPlayGame() {
   gameMode = setupGameMode;
   humanColor = setupHumanColor;
   stockfishLevel = setupStockfishLevel;
-  resetBoardState();
+  resetBoardState(playStartFen || undefined);
   if (gameMode !== "stockfish") {
     terminateOpponentEngine();
   }
@@ -306,6 +316,12 @@ function updateSetupControls() {
   stockfishLevelInput.value = String(setupStockfishLevel);
   stockfishLevelInput.disabled = playGameStarted;
   startPlayGameButton.disabled = playGameStarted;
+  startPlayGameButton.textContent = playStartFen ? "Start from position" : "Start game";
+  playFromPositionNoteEl.hidden = !playStartFen || playGameStarted;
+  if (playStartFen) {
+    const side = getFenTurn(playStartFen) === "w" ? "White" : "Black";
+    playFromPositionNoteEl.textContent = `Starting from analysed position. ${side} to move.`;
+  }
 }
 
 function updateLockedGameSummary() {
@@ -421,6 +437,7 @@ function render() {
   updateOpponentControls();
   updatePgnStatus();
   updatePlaybackControls();
+  updateGameExportControls();
   updateChatPrompt();
   scheduleLiveTutorAnalysis();
 }
@@ -897,6 +914,13 @@ function updatePlaybackControls() {
   movePlayButton.textContent = isPlayingLine ? "Pause" : "Play";
   movePlayButton.setAttribute("aria-label", isPlayingLine ? "Pause moves" : "Play moves");
   movePlayButton.title = isPlayingLine ? "Pause moves" : "Play moves";
+}
+
+function updateGameExportControls() {
+  playFromHereButton.disabled = appMode !== "analyse" || isGameOver();
+  playFromHereButton.title = playFromHereButton.disabled
+    ? "Choose a non-terminal analysis position to play from"
+    : "Start a game from the selected analysis position";
 }
 
 function findMatchingChild(parentNode, move) {
@@ -1726,6 +1750,15 @@ function copyPgnWithEngineAnalysis() {
   copyExportText(copyPgnAnalysisButton, buildExportPgnWithEngineAnalysis(), "Copy PGN + Engine Analysis");
 }
 
+function playFromCurrentAnalysisPosition() {
+  if (appMode !== "analyse" || !game || isGameOver()) return;
+
+  const startFen = game.fen();
+  stopPlayback();
+  resetChatPromptStatus();
+  showPlaySetup({ startFen });
+}
+
 async function copyAndOpenChessBard() {
   const originalText = openChessBardButton.textContent;
   const analysisText = buildExportPgnWithEngineAnalysis();
@@ -2148,6 +2181,10 @@ copyPgnButton.addEventListener("click", () => {
 
 copyPgnAnalysisButton.addEventListener("click", () => {
   copyPgnWithEngineAnalysis();
+});
+
+playFromHereButton.addEventListener("click", () => {
+  playFromCurrentAnalysisPosition();
 });
 
 openChessBardButton.addEventListener("click", () => {

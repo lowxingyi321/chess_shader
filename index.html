@@ -130,6 +130,7 @@
             <span id="engine-state" class="engine-state">Human</span>
           </div>
           <div id="play-setup-controls">
+            <p id="play-from-position-note" class="setup-note" hidden></p>
             <div class="opponent-controls" role="group" aria-label="Opponent mode">
               <button class="opponent-option active" type="button" data-game-mode="human">Human</button>
               <button class="opponent-option" type="button" data-game-mode="stockfish">Stockfish</button>
@@ -196,6 +197,7 @@
             <h2>Game Export</h2>
           </div>
           <div class="game-export-actions">
+            <button id="play-from-here" class="secondary-action analyse-only" type="button">Play from here</button>
             <button id="copy-pgn" class="secondary-action" type="button">Copy PGN</button>
             <button id="copy-pgn-analysis" class="secondary-action" type="button">Copy PGN + Engine Analysis</button>
             <button id="open-chess-bard" class="secondary-action" type="button">Open in Chess Bard</button>

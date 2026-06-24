@@ -606,6 +606,18 @@ button {
   accent-color: #26302d;
 }
 
+.setup-note {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(53, 95, 138, 0.2);
+  border-radius: 8px;
+  background: rgba(53, 95, 138, 0.08);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
 .primary-action {
   display: grid;
   place-items: center;
@@ -697,6 +709,11 @@ button {
 
 .game-export-actions .secondary-action {
   margin-top: 0;
+}
+
+.game-export-actions .secondary-action:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .shader-controls {
@@ -1218,6 +1235,14 @@ button {
 
   .board-lower-panels {
     grid-template-columns: 1fr;
+  }
+
+  #app-workspace[data-mode="analyse"] .moves-panel {
+    order: 1;
+  }
+
+  #app-workspace[data-mode="analyse"] .pgn-panel {
+    order: 2;
   }
 }
 
