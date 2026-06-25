@@ -1348,6 +1348,39 @@ function queueLiveTutorAnalysis() {
   updateChatPrompt();
 }
 
+function queueFullGameAnalysisForExport() {
+  if (!game || !getActivePath().length) return;
+  initLiveTutorEngine();
+
+  if (!liveTutorReady) {
+    liveTutorStatus = liveTutorEngine ? "Analyzing" : "No engine";
+    updateChatPrompt();
+    return;
+  }
+
+  const activePath = getActivePath();
+  const fens = [
+    moveTree.nodes[moveTree.rootId].fen,
+    ...activePath.map((node) => node.fen),
+  ].filter((fen, index, allFens) => fen && allFens.indexOf(fen) === index);
+
+  fens.forEach((fen) => {
+    if (liveTutorResults.has(fen)) return;
+    if (liveTutorActiveRequest?.fen === fen || liveTutorQueue.some((request) => request.fen === fen)) return;
+    liveTutorQueue.push({
+      id: ++liveTutorRequestId,
+      fen,
+      info: {},
+    });
+  });
+
+  if (liveTutorQueue.length) {
+    liveTutorStatus = "Analyzing";
+    processLiveTutorQueue();
+    updateChatPrompt();
+  }
+}
+
 function shouldDeferLiveTutorForOpponent() {
   if (appMode !== "play" || !playGameStarted || gameMode !== "stockfish") return false;
   if (!engineReady || engineThinking) return true;
@@ -1573,6 +1606,35 @@ function getGameReviewHighlights() {
   return highlights.slice(0, 8);
 }
 
+function getGameMoveAnalyses() {
+  const activePath = getActivePath();
+
+  if (!activePath.length) {
+    return ["No moves available yet."];
+  }
+
+  return activePath.map((node) => {
+    const parentNode = moveTree.nodes[node.parentId];
+    const parentAnalysis = parentNode ? liveTutorResults.get(parentNode.fen) || null : null;
+    const currentAnalysis = liveTutorResults.get(node.fen) || null;
+    const classification = classifyCurrentMove(node, parentAnalysis, currentAnalysis);
+    const moveLabel = `${node.moveNumber}${node.color === "b" ? "..." : "."} ${node.san}`;
+
+    if (!parentAnalysis || !currentAnalysis || !classification) {
+      return `${moveLabel}: Engine analysis pending.`;
+    }
+
+    return [
+      `${moveLabel}: ${classification.label}`,
+      `${classification.drop} cp drop`,
+      `${formatCentipawnScore(classification.before)} to ${formatCentipawnScore(classification.after)} for ${classification.mover}`,
+      `best move after move: ${formatBestMove(currentAnalysis)}`,
+      `short PV: ${formatPv(currentAnalysis.pv)}`,
+      `depth: ${currentAnalysis.depth || "Pending"}`,
+    ].join("; ");
+  });
+}
+
 function getGameReviewCoverage() {
   const activePath = getActivePath();
   if (!activePath.length) return "No moves available yet.";
@@ -1747,6 +1809,7 @@ function copyPgn() {
 }
 
 function copyPgnWithEngineAnalysis() {
+  queueFullGameAnalysisForExport();
   copyExportText(copyPgnAnalysisButton, buildExportPgnWithEngineAnalysis(), "Copy PGN + Engine Analysis");
 }
 
@@ -1761,6 +1824,7 @@ function playFromCurrentAnalysisPosition() {
 
 async function copyAndOpenChessBard() {
   const originalText = openChessBardButton.textContent;
+  queueFullGameAnalysisForExport();
   const analysisText = buildExportPgnWithEngineAnalysis();
 
   try {
@@ -1805,6 +1869,7 @@ function buildExportPgn() {
 function buildExportPgnWithEngineAnalysis() {
   const context = getCurrentGameContextForChat();
   const highlights = getGameReviewHighlights();
+  const moveAnalyses = getGameMoveAnalyses();
   const currentEval = formatPerspectiveScore(context.currentAnalysis?.score, context.playerColor);
   const whiteEval = formatWhiteScore(context.currentAnalysis?.score);
 
@@ -1820,8 +1885,11 @@ function buildExportPgnWithEngineAnalysis() {
     "Key move highlights:",
     highlights.length ? highlights.join("\n") : "No major engine-classified mistakes are cached yet.",
     "",
-    "Selected position context:",
-    `FEN: ${context.fen}`,
+    "Move-by-move engine analysis:",
+    moveAnalyses.join("\n"),
+    "",
+    "Final/selected position context:",
+    `Selected FEN: ${context.fen}`,
     `Selected move/position: ${context.currentMove}`,
     `Current eval for coach perspective: ${currentEval}`,
     `Current eval from White perspective: ${whiteEval}`,
